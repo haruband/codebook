@@ -1,12 +1,8 @@
-Wow! I love blogging so much already.
-
-Did you know that "despite its name, salted duck eggs can also be made from
-chicken eggs, though the taste and texture will be somewhat different, and the
-egg yolk will be less rich."?
+cilium vxlan 동작 과정 분석
 
 ![cilium.vxlan](./cilium-vxlan.png)
 
-Yeah, I didn't either.
+vxlan 의 라우팅 테이블
 
 ```
 haruband@master:~$ route -n

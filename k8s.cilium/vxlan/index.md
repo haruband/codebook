@@ -1,6 +1,7 @@
 Cilium 의 대표적인(기본설정) Datapath 기법은 VXLAN 에 기반하고 있다.
 리눅스 커널은 기본적으로 VXLAN 기능을 제공하고 있고, Cilium 은 이를 이용하고 있다.
 VXLAN 에 대한 자세한 설명은 생략하고, Cilium 의 동작 과정을 설명하면서 필요한 부분에 대해서만 간단히 부연설명하겠다.
+(본 블로그에서는 VXLAN 에 대한 내용에 집중하기 위해 서비스에 대한 처리 과정은 생략하겠다.)
 
 아래 그림은 Cilium 에서 VXLAN 을 사용할 경우 Pod-To-Pod 통신이 이루어지는 과정이다.
 Node0 의 Pod0 에서 Node1 의 Pod3 으로 패킷을 보내는 과정을 살펴보도록 하자.
@@ -34,7 +35,8 @@ veth0 의 ingress 에는 cilium/bpf/bpf_lxc.c 의 from-container 섹션이 붙�
 cilium_vxlan 에서는 앞에서 설명한 것처럼 전달받은 패킷에 목적지 노드의 주소를 추가하여 물리 네트워크 장치(eth0) 로 패킷을 전달(redirect)한다.
 
 Node1 의 물리 네트워크 장치(eth0) 로 수신된 UDP 패킷은 cilium_vxlan 에서 VXLAN 관련 간단한 처리를 한 다음 cilium_vxlan 의 ingress 에 붙어있는 cilium/bpf/bpf_overlay.c 의 from-overlay 섹션에서 처리된다.
-여기서는 목적지 주소가 해당 노드에 있으므로 바로 해당 목적지(Pod3) 의 veth1 로 패킷을 전달(redirect)해서 veth1 의 egress 에 붙어있는 프로그램에서 처리해야 하지만, 성능을 높이기 위해 cilium_call_policy 맵에 목적지(Pod3) 의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c 의 handle_policy()) 을 tailcall 로 호출한다.
+(VXLAN 드라이버에서 cilium_vxlan 장치를 생성할때 8472 UDP 포트로 들어오는 모든 패킷을 처리할 수 있는 콜백 함수를 등록해놓는다.)
+여기서는 목적지 주소가 해당 노드에 있으므로 바로 해당 목적지(Pod3) 의 veth1 로 패킷을 전달(redirect)해서 veth1 의 egress 에 붙어있는 프로그램에서 처리해야 하지만, 성능을 높이기 위해 cilium_call_policy 맵에 목적지(Pod3) 의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c 의 handle_policy()) 을 tailcall 로 직접 호출한다.
 해당 프로그램에서는 필요한 처리를 한 뒤, 목적지(Pod3) 의 veth1 로 패킷을 전달(redirect)하고, 결국 해당 패킷은 Pod3 의 eth0 로 전달된다.
 
 여기까지 VXLAN 을 통해 Pod-To-Pod 통신이 이루어지는 과정을 살펴보았다.

@@ -32,3 +32,8 @@ veth0 에서 필요한 정보를 포함하여 L2 패킷을 cilium_vxlan 장치�
 Pod0 에서 생성된 패킷은 eth0 을 통해 veth0 으로 전달된다.
 veth0 의 ingress 에는 cilium/bpf/bpf_lxc.c 의 from-container 섹션이 붙어 있는데, 해당 bpf 의 역할은 목적지 주소가 동일한 노드이면 해당 목적지(Pod) 의 vethx 로 패킷을 전달(redirect)하고, 아니면 목적지 노드의 주소와 함께 해당 패킷을 cilium_vxlan 으로 전달(redirect)한다.
 cilium_vxlan 에서는 앞에서 설명한 것처럼 전달받은 패킷에 목적지 노드의 주소를 추가하여 물리 네트워크 장치(eth0) 로 패킷을 전달(redirect)한다.
+
+Node1 의 물리 네트워크 장치(eth0) 로 수신된 UDP 패킷은 cilium_vxlan 에서 VXLAN 관련 간단한 처리를 한 다음 cilium_vxlan 의 ingress 에 붙어있는 cilium/bpf/bpf_overlay.c 의 from-overlay 섹션에서 처리된다.
+여기서는 목적지 주소가 해당 노드에 있으므로 해당 목적지(Pod) 의 vethx 로 패킷을 전달(redirect)해야 하지만, 성능을 높이기 위해 cilium_call_policy 맵에 
+
+여기까지 VXLAN 을 통해 Pod-To-Pod 통신이 이루어지는 과정을 살펴보았다. 

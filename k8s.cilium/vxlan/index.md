@@ -1,17 +1,25 @@
-cilium vxlan 동작 과정 분석
+Cilium 의 대표적인(기본설정) Datapath 기법은 VXLAN 에 기반하고 있다.
+리눅스 커널은 기본적으로 VXLAN 기능을 제공하고 있고, Cilium 은 이를 이용하고 있다.
+VXLAN 에 대한 자세한 설명은 생략하고, Cilium 의 동작 과정을 설명하면서 필요한 부분에 대해서만 간단히 부연설명하겠다.
+
+아래 그림은 Cilium 에서 VXLAN 을 사용할 경우 Pod-To-Pod 통신이 이루어지는 과정이다.
+Node0 의 Pod0 에서 Node1 의 Pod3 으로 패킷을 보내는 과정을 살펴보도록 하자.
+(Pod 이 서로 다른 노드에 존재하는 경우에 대해서만 설명하겠다.)
 
 ![cilium.vxlan](./cilium-vxlan.png)
 
-vxlan 의 라우팅 테이블
+우선 그림에 나오는 다양한 네트워크 장치에 대해 설명하도록 하겠다.
 
-```
-haruband@master:~$ route -n
-Kernel IP routing table
-Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
-0.0.0.0         172.26.50.1     0.0.0.0         UG    0      0        0 eno1
-10.0.0.0        10.0.0.147      255.255.255.0   UG    0      0        0 cilium_host
-10.0.0.147      0.0.0.0         255.255.255.255 UH    0      0        0 cilium_host
-10.0.1.0        10.0.0.147      255.255.255.0   UG    0      0        0 cilium_host
-172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
-172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eno1
-```
+첫 번째로, Cilium 에서는 새로운 Pod 을 생성할 때 VETH 를 하나씩 생성한다.
+VETH 는 두 개의 가상 네트워크 장치를 생성하여 서로 연결해주는 간단한 장치이다.
+위의 그림에서 보면 Pod0 안에 있는 eth0 와 node0 에 있는 veth0 은 연결된 한쌍의 VETH 이고, 이 말은 eth0 로 패킷을 전달하면 veth0 을 통해 패킷이 나가게 되고, 반대로 veth0 을 통해 패킷이 들어오면 eth0 로 패킷을 수신할 수 있다는 것이다.
+
+두 번째로, Cilium 에서는 실제 VXLAN 통신을 담당할 가상 네트워크 장치를 생성한다.
+이는 cilium_vxlan 이라는 이름을 사용하고, 노드별로 하나씩 생성된다.
+veth0 에서 필요한 정보를 포함하여 L2 패킷을 cilium_vxlan 장치로 전달하면, cilium_vxlan 은 해당 L2 패킷에 VXLAN 헤더와 해당 패킷을 물리적인 네트워크 환경을 통해 전달하기 위해 필요한 L2/L3/UDP 헤더를 추가하여 물리 네트워크 장치(node0 의 eth0)로 내보내게 된다.
+아래는 VXLAN 을 통해 외부로 나가는 실제 패킷의 구조이다.
+
+| Ethernet | IP | UDP | VXLAN | Ethernet(in) | IP(in) | Payload |
+
+위의 그림을 기준으로 실제 패킷에 들어가는 값을 정리해보면, 내부 IP 헤더의 출발지 주소는 10.0.0.31, 목적지 주소는 10.0.1.72 이고, 외부 IP 헤더의 출발지 주소는 172.26.50.101, 목적지 주소는 172.26.50.102 이다.
+그리고 외부 UDP 헤더는 VXLAN 이 기본적으로 사용하는 8472 이다.

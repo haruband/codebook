@@ -22,10 +22,10 @@ pod0 $ ip addr show
        valid_lft forever preferred_lft forever
 ...
 node0 $ ip addr show
-2: eno1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc mq state UP group default qlen 1000
     link/ether a4:ae:11:18:c4:2d brd ff:ff:ff:ff:ff:ff
     altname enp2s0
-    inet 172.26.50.170/24 brd 172.26.50.255 scope global eno1
+    inet 172.26.50.170/24 brd 172.26.50.255 scope global eth0
        valid_lft forever preferred_lft forever
     inet6 fe80::a6ae:11ff:fe18:c42d/64 scope link
        valid_lft forever preferred_lft forever
@@ -53,9 +53,29 @@ func getEntryProgInstructions(fd int) asm.Instructions {
 fd 인자가 바로 앞에서 언급한 호스트 네임스페이스에서 생성한 프로그램 어레이 맵에 접근할 수 있는 파일디스크립터이고, fd 와 0 을 인자로 tailcall 명령어를 호출하는 간단한 프로그램을 반환한다.
 이런 준비과정을 거쳐 Cilium 은 Pod 의 LXC BPF 프로그램을 변경하고 싶을 때 네임스페이스 변경없이 앞에서 생성한 프로그램 어레이 맵의 첫 번째 프로그램을 변경만 하면 되는 것이다.
 그리고 ingress 는 가상 네트워크 장치에 LXC BPF 프로그램을 직접 연결하는 방식이 아니기 때문에 VXLAN 과 동일한 방식을 사용한다.
-(cilium_call_policy 맵에 목적지(Pod)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy())을 tailcall 로 직접 호출한다.)
+(cilium_call_policy 맵에 목적지(Pod)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 직접 호출한다.)
 
 참고로, 동일한 LXC BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)이 IPVLAN 에서는 Pod 의 eth0 의 egress 에 연결되지만, VXLAN 에서는 veth 의 ingress 에 연결된다.
 이는 VXLAN 에서는 Pod 의 eth0 의 TX 가 veth 의 RX 로 바로 전달되기 때문에 호스트 네임스페이스에 있는 veth 의 ingress 에 연결하는 것이다.
 
 그럼 이제 패킷이 전달되는 과정을 좀 더 상세히 살펴보도록 하자.
+
+Node0 의 Pod0 에서 생성된 패킷은 eth0 의 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)에 의해 목적지 주소가 동일한 노드이면 해당 목적지(Pod1)의 eth0 으로 바로 전달(redirect)되고, 다른 노드이면 노드의 eth0 으로 전달(redirect)된다.
+노드에서는 일반적인 패킷과 동일한 방식으로 라우팅 테이블을 참고하여 패킷을 전달하는데, 이는 새로운 노드가 추가될때 해당 노드의 PodCIDR 과 주소를 이용해서 아래와 같이 라우팅 정보를 미리 추가해놓기 때문이다.
+
+```
+node0 $ route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+0.0.0.0         172.26.50.1     0.0.0.0         UG    0      0        0 eth0
+10.0.0.0        10.0.0.196      255.255.255.0   UG    0      0        0 cilium_host
+10.0.0.196      0.0.0.0         255.255.255.255 UH    0      0        0 cilium_host
+10.0.1.0        172.26.50.102   255.255.255.0   UG    0      0        0 eth0
+172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
+172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eth0
+```
+
+Node1 의 물리 네트워크 장치(eth0)로 수신된 패킷은 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 처리된다.
+여기서는 목적지 주소가 해당 노드에 있으므로 cilium_call_policy 맵에 목적지(Pod3)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 호출하여 필요한 처리를 한 뒤, 목적지(Pod3)의 eth0 으로 패킷을 전달(redirect)한다.
+
+여기까지 IPVLAN 을 통해 Pod-To-Pod 통신이 이루어지는 과정을 살펴보았다.

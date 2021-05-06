@@ -45,7 +45,7 @@ TUNNEL       VALUE
 
 Node1 의 물리 네트워크 장치(eth0)로 수신된 UDP 패킷은 cilium_vxlan 에서 VXLAN 관련 간단한 처리를 한 다음 cilium_vxlan 의 ingress BPF 프로그램(cilium/bpf/bpf_overlay.c#from-overlay)에서 처리된다.
 (VXLAN 드라이버에서 cilium_vxlan 장치를 생성할때 8472 UDP 포트로 들어오는 모든 패킷을 처리할 수 있는 콜백 함수를 등록해놓는다.)
-여기서는 목적지 주소가 해당 노드에 있으므로 바로 해당 목적지(Pod3)의 veth1 로 패킷을 전달(redirect)해서 veth1 의 egress BPF 프로그램에서 처리해야 하지만, 성능을 높이기 위해 cilium_call_policy 맵에 목적지(Pod3)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy())을 tailcall 로 직접 호출한다.
+여기서는 목적지 주소가 해당 노드에 있으므로 바로 해당 목적지(Pod3)의 veth1 로 패킷을 전달(redirect)해서 veth1 의 egress BPF 프로그램에서 처리해야 하지만, 성능을 높이기 위해 cilium_call_policy 맵에 목적지(Pod3)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 직접 호출한다.
 해당 프로그램에서는 필요한 처리를 한 뒤, 목적지(Pod3)의 veth1 로 패킷을 전달(redirect)하고, 마지막으로 해당 패킷은 Pod3 의 eth0 로 전달된다.
 
 여기까지 VXLAN 을 통해 Pod-To-Pod 통신이 이루어지는 과정을 살펴보았다.

@@ -6,7 +6,7 @@ Cilium 에서 가장 기본적인 Pod-To-Service 통신이 이루어지는 과�
 
 ![cilium.service](./cilium-service.png)
 
-쿠버네티스에서 아래와 같이 리소스를 준비해두었다고 가정해보자.
+쿠버네티스에서 아래와 같이 리소스를 준비해두었다.
 
 ```
 $ kubectl get pods -o wide
@@ -52,6 +52,10 @@ ID   Frontend              Service Type   Backend
 쿠버네티스에서 Pod 을 생성하면 하위 CGROUP 을 생성하는데, 하위 CGROUP 은 기본적으로 상위 CGROUP 의 BPF 프로그램을 상속받기 때문에 Cilium 에서 데몬을 시작할때 필요한 BPF 프로그램을 루트 CGROUP 에 등록해놓으면 모든 Pod 은 해당 BPF 프로그램을 상속받게 된다.
 
 실제 SOCK BPF 프로그램이 하는 역할을 살펴보면, connect() 와 sendto() 소켓 함수에 연결된 프로그램(connect4, sendmsg4)에서는 소켓의 목적지 주소(10.98.36.83)와 포트(80)를 백엔드 주소(10.0.1.72)와 포트(80)로 변환하고, cilium_lb4_reverse_sk 맵에 백엔드 주소와 포트를 등록해놓는다.
+(위의 그림에서 1-2번에 해당한다.)
 그리고 recvmsg() 소켓 함수에 연결된 프로그램(recvmsg4)에서는 cilium_lb4_reverse_sk 맵을 이용해서 목적지 주소(10.0.1.72)와 포트(80)를 다시 서비스 주소(10.98.36.83)와 포트(80)로 변환하게 된다.
+(위의 그림에서 10-11번에 해당한다.)
+
+나머지 과정(3-9번)은 VXLAN 혹은 IPVLAN 을 이용한 Pod-To-Pod 통신 과정과 동일하다.
 
 여기까지 Cilium 에서 Pod-To-Service 통신이 이루어지는 과정을 살펴보았다.

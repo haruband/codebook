@@ -33,8 +33,9 @@ veth0 에서 필요한 정보와 함께 L2 패킷을 cilium_vxlan 장치로 전�
 그럼 이제 패킷이 전달되는 과정을 좀 더 상세히 살펴보도록 하자.
 
 Node0 의 Pod0 에서 생성된 패킷은 eth0 을 통해 veth0 으로 전달된다.
-veth0 의 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)의 역할은 목적지 주소가 동일한 노드이면 해당 목적지(Pod1)의 veth1 로 패킷을 전달(redirect)하고, 다른 노드이면 cilium_tunnel_map 맵에 목적지(Pod3)의 네트워크 주소(10.0.1.0)를 해시 키값으로 사용해서 목적지 노드의 주소(172.26.50.102)를 가져온 뒤, 목적지 노드의 주소와 함께 해당 패킷을 cilium_vxlan 으로 전달(redirect)한다.
-(cilium 를 통해 실제 터널 목록(cilium_tunnel_map)을 출력한 결과는 아래와 같다. 터널 정보는 새로운 노드가 추가될때 해당 노드의 PodCIDR 과 주소를 이용해서 생성된다.)
+veth0 의 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)의 역할은 목적지 주소가 동일한 노드이면 해당 목적지(Pod1)의 veth1 로 패킷을 전달(redirect)하고, 다른 노드이면 cilium_tunnel_map 맵에 목적지(Pod3)의 네트워크 주소(10.0.1.0)를 해시 키값으로 사용해서 목적지 노드의 주소(172.26.50.102)를 가져온 뒤, 목적지 노드의 주소와 함께 해당 패킷을 cilium_vxlan 으로 전달(redirect)하는 것이다.
+(cilium 을 통해 실제 터널 목록(cilium_tunnel_map)을 출력한 결과는 아래와 같다.
+터널 정보는 새로운 노드가 추가될때 해당 노드의 PodCIDR 과 주소를 이용해서 생성된다.)
 cilium_vxlan 에서는 앞에서 설명한 것처럼 전달받은 패킷에 목적지 노드의 주소를 추가하여 물리 네트워크 장치(eth0)로 패킷을 전달(redirect)한다.
 
 ```

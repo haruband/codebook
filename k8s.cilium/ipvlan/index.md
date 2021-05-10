@@ -7,7 +7,7 @@ Node0 의 Pod0 에서 Node1 의 Pod3 으로 패킷을 보내는 과정을 살펴
 
 ![cilium.vxlan](./cilium-ipvlan.png)
 
-기본적으로 VXLAN 에 비해 구조가 단순한데, 그 이유는 Pod 안에 있는 eth0 이 IPVLAN 슬레이브로, Node 의 eth0 은 IPVLAN 마스터로 동작하기 때문이다.
+기본적으로 VXLAN 에 비해 구조가 단순한데, 그 이유는 Pod 안에 있는 eth0 은 IPVLAN 슬레이브로, Node 의 eth0 은 IPVLAN 마스터로 동작하기 때문이다.
 IPVLAN 슬레이브에서 패킷을 전송하면 IP 헤더를 확인하여 동일한 노드에 해당 목적지 주소를 사용하는 IPVLAN 슬레이브가 있으면 바로 전달하고, 아니면 IPVLAN 마스터로 패킷을 전달한다.
 VETH 를 통과해서 패킷을 캡슐화까지 해야하는 VXLAN 에 비해 성능적인 이점이 있기 때문에 안정화된 버전이 공개되면 널리 사용될 것으로 기대된다.
 
@@ -34,7 +34,7 @@ node0 $ ip addr show
 IPVLAN 을 사용하는 경우, LXC BPF 프로그램(cilium/bpf/bpf_lxc.c)을 연결하는 것이 애매하다.
 VXLAN 을 사용하는 경우에는 Pod 의 veth 가 호스트 네트워크 네임스페이스에 존재하기 때문에 veth 에 LXC BPF 프로그램을 연결해서 사용하지만, IPVLAN 은 VETH 를 사용하지 않기 때문에 Pod 의 eth0 에 LXC BPF 프로그램을 연결할 수 밖에 없다.
 (Kubelet 과 Cilium 이 호스트 네트워크 네임스페이스에서 동작하기 때문에 LXC BPF 프로그램을 연결할 가상 네트워크 장치가 같은 네임스페이스에 있는 것이 편리하다.)
-이 문제를 해결하기 위해 Cilium 은 호스트 네임스페이스에 각각의 Pod 을 위한 프로그램 어레이 맵을 하나씩 만들고, Pod 의 eth0 의 egress 에는 해당 프로그램 어레이 맵의 첫 번째 프로그램을 tailcall 하는 프로그램을 연결하는 방식을 사용하고 있다.
+이 문제를 해결하기 위해 Cilium 은 호스트 네임스페이스에 각각의 Pod 을 위한 BPF 프로그램 어레이 맵을 하나씩 만들고, Pod 의 eth0 의 egress 에는 해당 BPF 프로그램 어레이 맵의 첫 번째 프로그램을 tailcall 하는 프로그램을 연결하는 방식을 사용하고 있다.
 
 ```
 [cilium/pkg/datapath/connector/ipvlan.go]
@@ -50,8 +50,8 @@ func getEntryProgInstructions(fd int) asm.Instructions {
 ```
 
 위 함수는 Kubelet 에서 새로운 Pod 을 생성할 때 호출하는 cilium-cni 에서 Pod 을 위한 IPVLAN 슬레이브(eth0)를 만들고 해당 슬레이브의 egress 에 실제로 연결할 프로그램을 생성하는 함수이다.
-fd 인자가 바로 앞에서 언급한 호스트 네임스페이스에서 생성한 프로그램 어레이 맵에 접근할 수 있는 파일디스크립터이고, fd 와 0 을 인자로 tailcall 명령어를 호출하는 간단한 프로그램을 반환한다.
-이런 준비과정을 거쳐 Cilium 은 Pod 의 LXC BPF 프로그램을 변경하고 싶을 때 네임스페이스 변경없이 앞에서 생성한 프로그램 어레이 맵의 첫 번째 프로그램을 변경만 하면 되는 것이다.
+fd 인자가 바로 앞에서 언급한 호스트 네임스페이스에서 생성한 BPF 프로그램 어레이 맵에 접근할 수 있는 파일디스크립터이고, fd 와 0 을 인자로 tailcall 명령어를 호출하는 간단한 프로그램을 반환한다.
+이런 준비과정을 거쳐 Cilium 은 Pod 의 LXC BPF 프로그램을 변경하고 싶을 때 네임스페이스 변경없이 앞에서 생성한 BPF 프로그램 어레이 맵의 첫 번째 프로그램을 변경만 하면 되는 것이다.
 그리고 ingress 는 가상 네트워크 장치에 LXC BPF 프로그램을 직접 연결하는 방식이 아니기 때문에 VXLAN 과 동일한 방식을 사용한다.
 (cilium_call_policy 맵에 목적지(Pod)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 직접 호출한다.)
 

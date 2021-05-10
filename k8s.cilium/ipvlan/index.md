@@ -58,9 +58,14 @@ fd 인자가 바로 앞에서 언급한 호스트 네임스페이스에서 생�
 참고로, 동일한 LXC BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)이 IPVLAN 에서는 Pod 의 eth0 의 egress 에 연결되지만, VXLAN 에서는 veth 의 ingress 에 연결된다.
 이는 VXLAN 에서는 Pod 의 eth0 의 TX 가 veth 의 RX 로 바로 전달되기 때문에 호스트 네임스페이스에 있는 veth 의 ingress 에 연결하는 것이다.
 
+IPVLAN 슬레이브에 연결된 BPF 프로그램이 호스트 네임스페이스에서 동작하지 않기 때문에 호스트 네임스페이스에 있는 IPVLAN 마스터로 패킷을 직접 전달(redirect)하는 것은 불가능하다.
+BPF 프로그램에서 패킷을 전달(redirect)할때 네트워크 장치 인덱스를 같이 전달하는데, 기본적으로 동일한 네임스페이스에 있는 장치 목록에서만 검색을 하기 때문에 다른 네임스페이스에 있는 장치로 패킷을 전달(redirect)하는 것은 불가능하다.
+하지만 IPVLAN 은 슬레이브에서 패킷을 내보내면(xmit) IPVLAN 드라이버에서 마스터로 직접 전달해주기 때문에 슬레이브에 연결된 BPF 프로그램에서는 패킷을 전달(redirect)하는 대신, 전송(xmit)하면 된다.
+동일한 노드에 있는 다른 슬레이브로 패킷을 전달할 때도 마스터로 전송(xmit)하면 마스터에서 목적지 주소를 확인해서 해당 슬레이브로 패킷을 바로 전달해준다.
+
 그럼 이제 패킷이 전달되는 과정을 좀 더 상세히 살펴보도록 하자.
 
-Node0 의 Pod0 에서 생성된 패킷은 eth0 의 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)에 의해 목적지 주소가 동일한 노드이면 해당 목적지(Pod1)의 eth0 으로 바로 전달(redirect)되고, 다른 노드이면 노드의 eth0 으로 전달(redirect)된다.
+Node0 의 Pod0 에서 생성된 패킷은 eth0 의 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)에 의해 목적지 주소가 동일한 노드이면 해당 목적지(Pod1)의 eth0 으로 바로 전송(xmit)되고, 다른 노드이면 노드의 eth0 으로 전송(xmit)된다.
 노드에서는 일반적인 패킷과 동일한 방식으로 라우팅 테이블을 참고하여 패킷을 전달하는데, 이는 새로운 노드가 추가될때 해당 노드의 PodCIDR 과 주소를 이용해서 아래와 같이 라우팅 정보를 미리 추가해놓기 때문이다.
 
 ```
@@ -76,6 +81,6 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 ```
 
 Node1 의 물리 네트워크 장치(eth0)로 수신된 패킷은 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 처리된다.
-여기서는 목적지 주소가 해당 노드에 있으므로 cilium_call_policy 맵에 목적지(Pod3)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 호출하여 필요한 처리를 한 뒤, 목적지(Pod3)의 eth0 으로 패킷을 전달(redirect)한다.
+여기서는 목적지 주소가 해당 노드에 있으므로 cilium_call_policy 맵에 목적지(Pod3)의 엔드포인트 아이디를 인덱스로 사용해서 저장된 프로그램(cilium/bpf/bpf_lxc.c#handle_policy)을 tailcall 로 호출하여 필요한 처리를 한 뒤, 목적지(Pod3)의 eth0 으로 패킷을 전송(xmit)한다.
 
 여기까지 IPVLAN 을 통해 Pod-To-Pod 통신이 이루어지는 과정을 살펴보았다.

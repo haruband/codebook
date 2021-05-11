@@ -33,7 +33,7 @@ node0 $ ip addr show
 
 IPVLAN 을 사용하는 경우, LXC BPF 프로그램(cilium/bpf/bpf_lxc.c)을 연결하는 것이 애매하다.
 VXLAN 을 사용하는 경우에는 Pod 의 veth 가 호스트 네트워크 네임스페이스에 존재하기 때문에 veth 에 LXC BPF 프로그램을 연결해서 사용하지만, IPVLAN 은 VETH 를 사용하지 않기 때문에 Pod 의 eth0 에 LXC BPF 프로그램을 연결할 수 밖에 없다.
-(Kubelet 과 Cilium 이 호스트 네트워크 네임스페이스에서 동작하기 때문에 LXC BPF 프로그램을 연결할 가상 네트워크 장치가 같은 네임스페이스에 있는 것이 편리하다.)
+(Kubelet 과 Cilium 이 호스트 네트워크 네임스페이스에서 동작하기 때문에 LXC BPF 프로그램을 연결할 가상 네트워크 장치가 같은 호스트 네트워크 네임스페이스에 있는 것이 편리하다.)
 이 문제를 해결하기 위해 Cilium 은 호스트 네임스페이스에 각각의 Pod 을 위한 BPF 프로그램 어레이 맵을 하나씩 만들고, Pod 의 eth0 의 egress 에는 해당 BPF 프로그램 어레이 맵의 첫 번째 프로그램을 tailcall 하는 프로그램을 연결하는 방식을 사용하고 있다.
 
 ```

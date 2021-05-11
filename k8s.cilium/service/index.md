@@ -20,8 +20,8 @@ NAME         ENDPOINTS            AGE
 nginx        10.0.1.72:80         20h
 ```
 
-웹서버 역할을 하는 Pod(nginx) 을 하나 준비해두고, run=nginx 라는 셀렉터를 가지는 서비스(nginx)를 생성하면 하나의 엔드포인트가 자동으로 생성된다.
-(여기서는 run=nginx 라벨을 가지는 Pod 이 하나 밖에 없기 때문에 엔드포인트가 하나만 보이지만, Pod(nginx) 이 두 개 이상이면 두 개 이상의 엔드포인트가 목록에 보일 것이다.)
+웹서버 역할을 하는 Pod(nginx)을 하나 준비해두고, run=nginx 라는 셀렉터를 가지는 서비스(nginx)를 생성하면 하나의 엔드포인트가 자동으로 생성된다.
+(여기서는 run=nginx 라벨을 가지는 Pod(nginx)이 하나 밖에 없기 때문에 엔드포인트가 하나만 보이지만, Pod(nginx)이 두 개 이상이면 두 개 이상의 엔드포인트가 목록에 보일 것이다.)
 그리고 Cilium 에서는 Pod 과 서비스 리소스를 지켜보면서(watch) 필요한 객체를 몇 가지 BPF 해시 맵(cilium_lxc, cilium_lb4_services_v2, ...)에 아래와 같이 추가한다.
 
 ```

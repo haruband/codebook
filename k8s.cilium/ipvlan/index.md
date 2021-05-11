@@ -1,5 +1,5 @@
 Cilium 은 IPVLAN 에 기반한 Routing Datapath 기법을 제공하고 있다.
-IPVLAN 은 VXLAN 과 마찬가지로 리눅스 커널이 제공하고 있는 기능이므로 IPVLAN 에 대한 자세한 설명은 생략하고, Cilium 의 동작 과정을 설명하면서 필요한 부분에 대해서만 간단히 부연설명하겠다.
+IPVLAN 은 VXLAN 과 마찬가지로 리눅스 커널이 제공하는 기능이므로 IPVLAN 에 대한 자세한 설명은 생략하고, Cilium 의 동작 과정을 설명하면서 필요한 부분에 대해서만 간단히 부연설명하겠다.
 (Routing Datapath 기법은 모든 노드가 같은 서브넷 안에 있을 때만 사용 가능하다.
 Calico 는 같은 서브넷에서는 라우팅 기법을, 다른 서브넷에서는 터널링 기법을 사용하는 CrossSubnet 기능도 제공하지만, Cilium 에는 아직 이러한 기능은 없다.)
 

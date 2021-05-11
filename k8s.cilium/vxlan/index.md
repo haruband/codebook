@@ -1,4 +1,4 @@
-Cilium 의 대표적인(기본설정) Datapath 기법은 VXLAN 에 기반하고 있다.
+Cilium 의 대표적인(기본설정) Tunneling Datapath 기법은 VXLAN 에 기반하고 있다.
 리눅스 커널은 기본적으로 VXLAN 기능을 제공하고 있고, Cilium 은 이를 기반으로 동작하고 있다.
 VXLAN 에 대한 자세한 설명은 생략하고, Cilium 의 동작 과정을 설명하면서 필요한 부분에 대해서만 간단히 부연설명하겠다.
 (본 블로그에서는 VXLAN 에 대한 내용에 집중하기 위해 서비스(Service)에 대한 처리 과정은 생략하겠다.)

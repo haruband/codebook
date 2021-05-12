@@ -2,7 +2,7 @@ Cilium 은 IPVLAN 에 기반한 Routing Datapath 기법을 제공하고 있다. 
 
 아래 그림은 Cilium 에서 IPVLAN 을 사용할 경우 Pod-To-Pod 통신이 이루어지는 과정이다. Node0 의 Pod0 에서 Node1 의 Pod3 으로 패킷을 보내는 과정을 살펴보도록 하자.
 
-![cilium.vxlan](./cilium-ipvlan.png)
+![cilium.ipvlan](./cilium-ipvlan.png)
 
 기본적으로 VETH/VXLAN 에 비해 구조가 단순한데, 그 이유는 Pod 의 eth0 은 IPVLAN 슬레이브로, Node 의 eth0 은 IPVLAN 마스터로 동작하기 때문이다. IPVLAN 슬레이브에서 패킷을 전송하면 IP 헤더를 확인하여 동일한 노드에 해당 목적지 주소를 사용하는 IPVLAN 슬레이브가 있으면 바로 전달하고, 아니면 IPVLAN 마스터로 패킷을 전달한다.
 

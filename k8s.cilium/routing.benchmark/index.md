@@ -22,4 +22,4 @@ LocalPod 은 같은 노드 안에서만 패킷을 전달하기 때문에 전체�
 | vxlan    | remote | X   |                     1.896 |
 | vxlan    | remote | O   |                     1.263 |
 
-NodePort 로 접근한 노드에 NGINX Pod 이 있는 경우(local)는 0.55 msecs 내외의 시간이 소요된다. NodePort 로 접근한 노드와 다른 노드에 NGINX Pod 이 있는 경우(remote)는 Direct Routing 은 0.818 msecs 가 소요되고, VXLAN 기반 터널링은 1.896 msecs 가 소요되지만, DSR 을 적용하는 경우 각각 25%(0.650 msecs)와 40%(1.264 msecs) 정도의 성능이 개선된다. 그리고 DSR 을 적용하면 응답 패킷을 다른 노드를 거치지 않고 외부 클라이언트로 바로 전송하기 때문에 클러스터 내부의 네트워크 트래픽을 줄이는 효과도 볼 수 있다.
+NodePort 로 접근한 노드에 NGINX Pod 이 있는 경우(local)는 0.55 msecs 내외의 시간이 소요된다. NodePort 로 접근한 노드와 다른 노드에 NGINX Pod 이 있는 경우(remote)는 Direct Routing 은 0.818 msecs 가 소요되고, VXLAN 기반 터널링은 1.896 msecs 가 소요되지만, DSR 을 적용하는 경우 각각 25%(0.650 msecs)와 40%(1.263 msecs) 정도의 성능이 개선된다. 그리고 DSR 을 적용하면 응답 패킷을 다른 노드를 거치지 않고 외부 클라이언트로 바로 전송하기 때문에 클러스터 내부의 네트워크 트래픽을 줄이는 효과도 볼 수 있다.

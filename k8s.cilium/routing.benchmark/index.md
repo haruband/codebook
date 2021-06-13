@@ -1,7 +1,7 @@
 쿠버네티스의 CNI 에서 성능에 가장 큰 영향을 미치는 것은 다음 두 가지이다.
 
-- eBPF vs IPTables (IPVS)
-- Direct Routing vs Tunneling
+- eBPF 를 사용하느냐, 아니면 IPTables (IPVS) 를 사용하느냐?
+- Direct Routing 을 사용하느냐, 아니면 Tunneling 을 사용하느냐?
 
 Cilium 과 가장 대표적인 CNI 인 Calico 를 이용하여 어느 정도의 성능 차이가 나는지 살펴보자. Cilium 은 기본적으로 eBPF 를 사용하고 있고, Calico 는 최근에 eBPF 지원 기능을 추가하였다.
 
@@ -11,7 +11,7 @@ Cilium 과 가장 대표적인 CNI 인 Calico 를 이용하여 어느 정도의 
 
 LocalPod 은 같은 노드 안에서만 패킷을 전달하기 때문에 전체적으로 유사한 성능을 보이지만, IPTables 기반의 Calico 는 20~30% 정도 느린 성능을 보이고 있다. RemotePod 은 eBPF + Direct Routing 을 사용하는 경우가 가장 좋은 성능을 보이고 있다. Cilium 의 경우 VXLAN 기반 터널링보다 20% 정도 좋은 성능을 보이고 있고, Calico 는 IPTables + VXLAN 기반 터널링보다 22% 정도 좋은 성능을 보이고 있다. 그리고 IPTables 를 사용할 때는 룰의 개수가 많아질수록 더 나쁜 성능을 보이기 때문에 Cilium 을 사용하거나, Calico 를 사용하는 경우에도 eBPF 를 사용하는 것이 좋을 것이다. 또한, 모든 노드가 같은 서브넷에 일때는 Direct Routing 을 사용하는 것이 유리하고, Calico 는 같은 서브넷에 있는 노드끼리는 Direct Routing 을, 다른 서브넷에 있는 노드끼리는 터널링 기법을 자동으로 적용하는 CrossSubnet 기능을 제공하고 있다.
 
-두 번째 실험은 Cilium 에서 DSR(Direct Server Return)을 적용하는 경우 어느 정도의 성능 차이가 나는지 살펴보자. 실험은 외부 클라이언트에서 NodePort 로 접근해서 HTTP 요청을 처리하는데 소요되는 시간의 P99 값을 측정하였다. (k6.js 를 이용하여 실험하였다.)
+두 번째 실험에서는 Cilium 에서 DSR(Direct Server Return)을 적용하는 경우 어느 정도의 성능 차이가 나는지 살펴보자. 실험은 외부 클라이언트에서 NodePort 로 접근해서 HTTP 요청을 처리하는데 소요되는 시간의 P99 값을 측정하였다. (k6.js 를 이용하여 실험하였다.)
 
 | datapath | target | DSR | http_req_duration (msecs) |
 | :------- | :----- | :-- | ------------------------: |

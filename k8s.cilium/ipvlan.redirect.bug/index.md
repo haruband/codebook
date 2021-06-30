@@ -4,9 +4,9 @@ Cilium 에서 제공하는 IPVLAN 기반의 Routing Datapath 기법을 사용하
 
 ![cilium.nodeport.vxlan](./cilium-nodeport-vxlan.png)
 
-우선, 다른 노드에 백엔드가 있는 경우는, 클라이언트가 NodePort 로 접속하면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 목적지 주소를 백엔드 주소로 변환하고 출발지 주소를 해당 노드의 주소로 변환한 다음, 백엔드가 있는 노드로 패킷을 전달한다. 그리고 응답 패킷을 받으면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램에서 목적지 주소를 클라이언트의 주소로 변환하고 출발지 주소를 해당 노드의 주소로 변환한 다음, 클라이언트에게 패킷을 전달한다.
+우선, 다른 노드에 백엔드가 있는 경우는, 클라이언트가 NodePort 로 접속하면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 목적지 주소를 백엔드 주소로 변환(DNAT)하고 출발지 주소를 해당 노드의 주소로 변환(SNAT)한 다음, 백엔드가 있는 노드로 패킷을 전달한다. 그리고 응답 패킷을 받으면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램에서 목적지 주소를 클라이언트의 주소로 변환하고 출발지 주소를 해당 노드의 주소로 변환한 다음, 클라이언트에게 패킷을 전달한다.
 
-다음으로, 같은 노드에 백엔드가 있는 경우는, 클라이언트가 NodePort 로 접속하면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 목적지 주소를 백엔드 주소로 변환한 다음, 바로 해당 백엔드 주소를 사용하는 Pod0 의 veth0 으로 패킷을 전달(redirect)한다. 그리고 Pod0 이 응답 패킷을 전달하면 Pod0 의 veth0 에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)에서 출발지 주소를 해당 노드의 주소로 변환한 다음, 클라이언트에게 패킷을 전달한다.
+다음으로, 같은 노드에 백엔드가 있는 경우는, 클라이언트가 NodePort 로 접속하면 호스트 네트워크 디바이스에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_host.c#from-netdev)에서 목적지 주소를 백엔드 주소로 변환(DNAT)한 다음, 바로 해당 백엔드 주소를 사용하는 Pod0 의 veth0 으로 패킷을 전달(redirect)한다. 그리고 Pod0 이 응답 패킷을 전달하면 Pod0 의 veth0 에 연결된 ingress BPF 프로그램(cilium/bpf/bpf_lxc.c#from-container)에서 출발지 주소를 해당 노드의 주소로 변환한 다음, 클라이언트에게 패킷을 전달한다.
 
 이제 IPVLAN 기반의 Cilium 에서 NodePort 가 동작하는 과정을 살펴보자. 위와 마찬가지로 오른쪽은 다른 노드에 백엔드가 있는 경우이고, 왼쪽은 같은 노드에 백엔드가 있는 경우이다.
 

@@ -13,3 +13,32 @@
 두 개의 Pod 는 하나의 coredns 디플로이먼트로 배포된 완전히 동일한 Pod 인데 왜 이런 문제가 발생한 것일까? 사실은 두 개의 Pod 이 완전히 동일한 상황은 아니다. 왜냐하면 두 개의 Pod 은 서로 다른 노드에 존재하고, 둘 중 하나의 노드에만 jupyterlab 이 존재하기 때문이다. jupyterlab 에서 동일한 방식으로 각각의 Pod 에 질의를 보냈지만, 결과적으로는 하나의 Pod 은 같은 노드에 있어서 로컬 통신으로 요청이 잘 처리되었고, 다른 Pod 은 다른 노드에 있어서 외부 통신을 하던 중 문제가 발생했던 것이다. **즉, 해당 문제는 우리가 처음 접했던 서비스 디스커버리의 문제가 아니고, 네트워킹의 문제였다.**
 
 ## _왜 이런 문제가 발생했는가???_
+
+우선 쿠버네티스에서 실제 통신을 처리하는 CNI 를 살펴보았다. 우리는 CNI 로 Cilium 을 사용 중이기 때문에 관련 정보들이 정확히 구성되어있는지 분석해보았다.
+
+```
+$ kubectl get services -n kube-system
+NAME             TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)                  AGE
+coredns          ClusterIP   10.233.0.3      <none>        53/UDP,53/TCP,9153/TCP   3h14m
+...
+$ kubectl get pods -l k8s-app=kube-dns -o wide -n kube-system
+NAME                       READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
+coredns-8474476ff8-d7pjv   1/1     Running   0          3h14m   10.233.64.125   node1   <none>           <none>
+coredns-8474476ff8-nz2tt   1/1     Running   0          3h13m   10.233.65.250   node2   <none>           <none>
+cilium(node1) $ cilium service list
+ID   Frontend            Service Type   Backend
+...
+2    10.233.0.3:53       ClusterIP      1 => 10.233.64.125:53
+                                        2 => 10.233.65.250:53
+...
+```
+
+Cilium 의 2번 서비스를 보면 기본적인 coredns 서비스와 엔드포인트가 정확히 설정되어있는 것을 확인할 수 있다. 다음으로 노드 간 통신을 위해 VXLAN 을 사용 중이기 때문에 아래와 같이 터널링 정보도 확인해보았다.
+
+```
+node1 $ cilium bpf tunnel list
+TUNNEL          VALUE
+10.233.65.0:0   172.26.50.201:0
+```
+
+여기까지 살펴본 바로는 설정에는 아무런 문제가 없었다. 그럼 이제 실제 통신이 제대로 이루어지는지를 살펴보자. 확인은 node1 에 존재하는 jupyterlab 에서 node2 에 있는 coredns Pod 으로 dig 를 이용하여 질의를 보낼때 node1 과 node2 에서 tcpdump 로 VXLAN 이 사용 중인 8472 UDP 포트를 모니터링하였다.

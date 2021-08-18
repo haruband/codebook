@@ -1,3 +1,0 @@
-falco
-
-![falco](./falco.png)

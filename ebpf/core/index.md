@@ -1,0 +1,1 @@
+최근 몇 년간 리눅스 커널 커뮤니티에서 가장 핫한 기능은 누가 뭐래도 eBPF 일 것이다. 대표적인 쿠버네티스의 CNI 인 [Cilium](https://cilium.io/)과 [Falco](https://falco.org/), [Pixie](https://pixielabs.ai/) 등 다양한 오픈소스 프로젝트의 기반 기술로 자리잡고 있으며, 점점 더 활용분야를 넓혀나가고 있다. 오늘은 최근 eBPF 커뮤니티에서 가장 핫한 기능 중에 하나인 CO-RE(Compile Once - Run Everywhere)에 대해 간단히 소개하고자 한다.

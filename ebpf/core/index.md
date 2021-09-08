@@ -18,7 +18,7 @@ int handle__sched_switch(u64 *ctx)
 }
 ```
 
-위의 코드를 보면, 리눅스의 프로세스 자료구조(task_struct 구조체)에서 현재 상태(state)를 확인하는 부분이 있다. 이 C 코드를 BPF 로 컴파일하면 아래와 같다.
+위의 코드를 보면, 리눅스의 프로세스 자료구조(task_struct 구조체)에서 현재 상태(state)를 확인하는 부분이 있다. 이 C 코드를 BPF 파일로 컴파일하면 아래와 같다.
 
 ```
 Disassembly of section tp_btf/sched_switch:
@@ -49,3 +49,22 @@ struct task_struct {
 ```
 
 위의 헤더 파일을 살펴보면, task_struct 구조체에서 state 필드는 thread_info 필드 다음에 있기 때문에 thread_info 필드의 사이즈(12 바이트)에 16 바이트로 정렬을 하면 16 바이트가 된다. 즉, task_struct 구조체 포인터로부터 16 바이트 떨어진 위치의 8 바이트 메모리가 state 필드의 값인 것이다.
+
+여기서 문제가 하나 발생하는데 그것은 task_struct 구조체가 어떤 버전의 커널을 쓰는지, 어떤 설정으로 쓰는지에 따라서 조금씩 달라진다는 것이다. 아래는 필자가 사용 중인 개발서버 중 한 대의 커널 헤더 파일이다.
+
+```
+struct thread_info {
+  long unsigned int flags;
+  long unsigned int syscall_work;
+  u32 status;
+};
+
+struct task_struct {
+  struct thread_info thread_info;
+  volatile long int state;
+  void *stack;
+  ...
+}
+```
+
+앞에서 BPF 파일을 컴파일할 때 사용했던 커널 헤더와 달리 thread_info 구조체에 syscall_work 라는 필드가 추가되어있다. 이 개발서버에서 앞에서 컴파일한 BPF 파일을 그대로 사용하다면 state 필드의 오프셋이 잘못되어있기 때문에 심각한 오류가 발생할 것이다. 기존에는 이러한 문제를 해결하기 위해 BPF 파일을 사용하는 서버에서 매번 직접 BPF 파일을 컴파일해서 사용을 했다. 하지만 BPF 파일을 컴파일하기 위해서는 clang/llvm 라이브러리를 항상 같이 배포해야하고, 컴파일하는데도 많은 자원과 시간이 소모된다. 이러한 문제를 해결하기 위해 나온 것이 CO-RE(Compile Once - Run Everywhere), 즉 한번 컴파일된 BPF 파일이 어디서든 실행되게 만드는 기술이다.

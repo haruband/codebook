@@ -80,10 +80,47 @@ struct task_struct {
 ...
 ```
 
-위에는 해당 BPF 파일을 컴파일할 때 사용한 구조체에 대한 구체적인 정보가 담겨있다. 앞에서 살펴본 것처럼 task_struct 구조체의 state 필드의 오프셋이 16 바이트(128 비트)인 것을 확인할 수 있다. 그리고 어떤 명령어에서 특정 구조체의 필드를 접근했는지에 대한 정보도 가지고 있는데, 이는 대략 아래와 같이 구성되어 있다.
+위에는 해당 BPF 파일을 컴파일할 때 사용한 구조체에 대한 구체적인 정보가 담겨있다. 앞에서 살펴본 것처럼 task_struct 구조체의 state 필드의 오프셋이 16 바이트(128 비트)인 것을 확인할 수 있다. 그리고 BTF 는 어떤 명령어에서 특정 구조체의 필드를 접근했는지에 대한 정보도 가지고 있는데, 이는 대략 아래와 같이 구성되어 있다.
 
 | InstOff |  TypeName   | AccessStr |
 | :-----: | :---------: | --------: |
 |   10    | task_struct |       0:1 |
 
-이를 해석해보면 (10:) 명령어에서 task_struct 구조체의 0:1 필드를 참고한다는 의미이다. 여기서 0:1 은 복잡한 구조체에서 특정 필드를 찾아가는 일종의 경로라고 보면 된다. 0 은 자기 자신을 의미하고 다음 1 은 두 번째 필드를 의미하기 때문에 0:1 은 task_struct 구조체의 state 필드를 의미한다. 즉, (10:) 명령어에서 task_struct 구조체의 state 필드를 참고한다는 의미이다. (일반적으로 구조체 안에 간단한 자료형뿐 아니라 구조체나 배열이 들어가는 경우가 많기 때문에 이러한 표현법을 사용한다.)
+이를 해석해보면 (10:) 명령어에서 task_struct 구조체의 0:1 필드를 참고한다는 의미이다. 여기서 0:1 은 복잡한 구조체에서 특정 필드를 찾아가는 일종의 경로라고 보면 된다. 처음 0 은 자기 자신을 의미하고 다음 1 은 두 번째 필드를 의미하기 때문에 0:1 은 task_struct 구조체의 state 필드를 의미한다. 즉, (10:) 명령어에서 task_struct 구조체의 state 필드를 참고한다는 의미이다. (일반적으로 구조체 안에 간단한 자료형뿐 아니라 구조체나 배열이 들어가는 경우가 많기 때문에 이러한 표현법을 사용한다.)
+
+위와 같은 BTF 정보를 이용하여 [libbpf](https://github.com/torvalds/linux/blob/master/tools/lib/bpf/libbpf.c)는 BPF 코드를 실행하기 전에 재배치 작업을 수행한다. 재배치는 위의 테이블에서 사용되는 구조체와 필드가 현재 사용 중인 커널에서는 어떻게 구성되어 있는지 확인한 다음 이루어진다. 아래는 현재 사용 중인 커널의 BTF 를 출력한 결과이다.
+
+```
+$ bpftool btf dump file /sys/kernel/btf/vmlinux format raw
+...
+[133] STRUCT 'task_struct' size=9472 vlen=230
+        'thread_info' type_id=354 bits_offset=0
+        'state' type_id=37 bits_offset=192
+        'stack' type_id=86 bits_offset=256
+...
+```
+
+재배치 작업은 (10:) 명령어에서 참고하는 task_struct 구조체의 state 필드의 오프셋을 현재 사용 중인 커널의 BTF 를 참고하여 24 바이트(192 비트)로 변경하는 것이다. 그럼 마지막으로 실제 커널에서 실행 중인 BPF 코드를 확인해보자.
+
+```
+$ bpftool prog dump xlated id 1310
+int handle__sched_switch(u64 * ctx):
+; int handle__sched_switch(u64 *ctx)
+   0: (bf) r6 = r1
+; struct task_struct *next = (struct task_struct *)ctx[2];
+   1: (79) r8 = *(u64 *)(r6 +16)
+; struct task_struct *prev = (struct task_struct *)ctx[1];
+   2: (79) r7 = *(u64 *)(r6 +8)
+   3: (b7) r1 = 0
+; struct event event = {};
+   4: (7b) *(u64 *)(r10 -24) = r1
+   5: (7b) *(u64 *)(r10 -32) = r1
+   6: (7b) *(u64 *)(r10 -40) = r1
+   7: (7b) *(u64 *)(r10 -48) = r1
+   8: (7b) *(u64 *)(r10 -56) = r1
+   9: (7b) *(u64 *)(r10 -64) = r1
+; if (prev->state == TASK_RUNNING)
+  10: (79) r1 = *(u64 *)(r7 +24)
+```
+
+위는 커널에 로딩된 BPF 코드를 덤프한 것이고 (10:) 명령어를 보면 오프셋이 24로 변경되어 있는 것을 확인할 수 있다. 이와 같은 과정을 통해 BPF 파일은 다양한 서버에서 재컴파일없이 실행이 가능해진다.

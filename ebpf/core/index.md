@@ -18,7 +18,7 @@ int handle__sched_switch(u64 *ctx)
 }
 ```
 
-위의 코드를 보면, 리눅스의 프로세스 자료구조(struct task_struct)에서 현재 상태(state)를 확인하는 부분이 있다. 이 C 코드를 BPF 로 컴파일하면 아래와 같다.
+위의 코드를 보면, 리눅스의 프로세스 자료구조(task_struct 구조체)에서 현재 상태(state)를 확인하는 부분이 있다. 이 C 코드를 BPF 로 컴파일하면 아래와 같다.
 
 ```
 Disassembly of section tp_btf/sched_switch:
@@ -32,4 +32,20 @@ Disassembly of section tp_btf/sched_switch:
       ...
 ```
 
-위의 BPF 코드를 간단히 해석해보면 r7 레지스터에 prev 변수의 값을 저장한 다음 r1 레지스터에 prev->state 의 값을 저장하고, r1 레지스터의 값이 TASK_RUNNING(0) 인지를 확인해서 분기한다.
+위의 BPF 코드를 간단히 해석해보면 r7 레지스터에 prev 구조체의 포인터를 저장한 다음 r1 레지스터에 prev 의 state 필드의 값을 저장하고, r1 레지스터의 값이 TASK_RUNNING(0) 인지를 확인해서 분기한다. 여기서 10번 줄을 살펴보면 prev 구조체 포인터에서 state 필드를 접근할 때 16 이라는 오프셋을 사용하는데, 이는 무슨 의미일까? 이 코드를 컴파일할 때 사용한 커널 헤더 파일은 아래와 같다.
+
+```
+struct thread_info {
+  long unsigned int flags;
+  u32 status;
+};
+
+struct task_struct {
+  struct thread_info thread_info;
+  volatile long int state;
+  void *stack;
+  ...
+}
+```
+
+위의 헤더 파일을 살펴보면, task_struct 구조체에서 state 필드는 thread_info 필드 다음에 있기 때문에 thread_info 필드의 사이즈(12 바이트)에 16 바이트로 정렬을 하면 16 바이트가 된다. 즉, task_struct 구조체 포인터로부터 16 바이트 떨어진 위치의 8 바이트 메모리가 state 필드의 값인 것이다.

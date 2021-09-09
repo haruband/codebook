@@ -34,7 +34,7 @@ Disassembly of section tp_btf/sched_switch:
 
 위의 BPF 코드를 간단히 해석해보면 (2:) r7 레지스터에 prev 구조체의 포인터를 저장한 다음 (10:) r1 레지스터에 prev 의 state 필드의 값을 저장하고, (11:) r1 레지스터의 값이 TASK_RUNNING(0) 인지를 확인해서 분기한다. 여기서 (10:)을 살펴보면 prev 구조체 포인터에서 state 필드를 접근할 때 16 이라는 오프셋을 사용하는데, 이는 무슨 의미일까? 이 코드를 컴파일할 때 사용한 커널 헤더 파일을 살펴보자.
 
-```
+```c
 struct thread_info {
   long unsigned int flags;
   u32 status;
@@ -52,7 +52,7 @@ struct task_struct {
 
 여기서 문제가 하나 발생하는데 그것은 task_struct 구조체가 어떤 버전의 커널을 쓰는지, 어떤 설정으로 쓰는지에 따라서 조금씩 달라진다는 것이다. 아래는 필자가 사용 중인 개발서버 중 한 대의 커널 헤더 파일이다.
 
-```
+```c
 struct thread_info {
   long unsigned int flags;
   long unsigned int syscall_work;

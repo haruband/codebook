@@ -142,6 +142,17 @@ lrwx------ 1 root root 64 Sep 16 05:56 9 -> anon_inode:bpf-prog
 해당 프로세스의 파일디스크립터 목록 중 6 번이 .data 섹션에 해당하는 BPF 맵이기 때문에 (11:) 명령어의 첫 번째 명령어에는 6 이라는 값이 채워지고, 심볼 테이블을 보면 data1 변수는 .data 섹션에서 오프셋이 4 이기 때문에 (11:) 명령어의 두 번째 명령어에는 4 라는 값이 채워진다. 이러한 과정을 통해 나온 결과물은 아래와 같다.
 
 ```bash
+$ bpftool map
+8105: array  name runqslow.data  flags 0x400
+	key 4B  value 8B  max_entries 1  memlock 4096B
+	btf_id 944
+8106: array  name runqslow.rodata  flags 0x480
+	key 4B  value 21B  max_entries 1  memlock 4096B
+	btf_id 944  frozen
+8107: array  name runqslow.bss  flags 0x400
+	key 4B  value 4B  max_entries 1  memlock 4096B
+	btf_id 944
+
 $ bpftool prog dump xlated id 62928
 int handle__sched_switch(u64 * ctx):
 ; int handle__sched_switch(u64 *ctx)
@@ -168,18 +179,6 @@ int handle__sched_switch(u64 * ctx):
 ; if (prev->state == data1)
   16: (5d) if r1 != r2 goto pc+20
   ...
-$ bpftool map
-...
-8105: array  name runqslow.data  flags 0x400
-	key 4B  value 8B  max_entries 1  memlock 4096B
-	btf_id 944
-8106: array  name runqslow.rodata  flags 0x480
-	key 4B  value 21B  max_entries 1  memlock 4096B
-	btf_id 944  frozen
-8107: array  name runqslow.bss  flags 0x400
-	key 4B  value 4B  max_entries 1  memlock 4096B
-	btf_id 944
-  ...
 ```
 
-위의 커널에 로딩된 BPF 코드를 살펴보면, (11:) 명령어에서
+우선 현재 사용 중인 BPF 맵 목록을 보면 각 섹션(.data, .rodata, .bss)에 해당하는 BPF 맵에 대한 정보를 볼 수 있다. 각각의 BPF 맵은 1개의 요소를 가지는 arraymap 형태로 만들어지고, 배열 요소의 크기는 각 섹션의 크기와 동일하다. 그리고 위의 커널에 로딩된 BPF 코드를 살펴보면, (11:) 명령어에서 파일디스크립터(6)에 해당하는 BPF 맵(.data)의 ID 와 첫 번째 배열 요소를 나타내는 인덱스(0), 그리고 해당 배열 요소에서의 오프셋(4)이 보인다.

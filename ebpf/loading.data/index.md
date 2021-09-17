@@ -141,7 +141,7 @@ lrwx------ 1 root root 64 Sep 16 05:56 9 -> anon_inode:bpf-prog
 
 해당 프로세스의 파일디스크립터 목록 중 6 번이 .data 섹션에 해당하는 BPF 맵이기 때문에 (11:) 명령어의 첫 번째 명령어에는 6 이라는 값이 채워지고, 심볼 테이블을 보면 data1 변수는 .data 섹션에서 오프셋이 4 이기 때문에 (11:) 명령어의 두 번째 명령어에는 4 라는 값이 채워진다. 이러한 재배치 과정을 통해 나온 BPF 코드는 아래와 같다.
 
-```bash
+```
 $ bpftool map
 8105: array  name runqslow.data  flags 0x400
 	key 4B  value 8B  max_entries 1  memlock 4096B
@@ -176,4 +176,42 @@ int handle__sched_switch(u64 * ctx):
 
 우선 현재 사용 중인 BPF 맵 목록을 보면 각 섹션(.data, .rodata, .bss)에 해당하는 BPF 맵에 대한 정보를 볼 수 있다. 각각의 BPF 맵은 1개의 요소만을 가지는 arraymap 형태로 만들어지고, 배열 요소의 크기는 각 섹션의 크기와 동일하다. 그리고 위의 커널에 로딩된 BPF 코드를 살펴보면, (11:) 명령어에서 파일디스크립터(6)에 해당하는 BPF 맵의 ID(8105)와 첫 번째 배열 요소를 나타내는 인덱스(0), 그리고 해당 배열 요소에서의 오프셋(4)을 볼 수 있다.
 
-이러한 재배치 작업이 끝난 후, 커널에서는 파일디스크립터와 오프셋을 이용하여 실제 메모리 주소를 구한 다음, (11:) 명령어의 첫 번째 명령어에 해당 메모리 주소의 하위 32 비트 주소를 저장하고, 두 번째 명령어에 상위 32 비트 주소를 저장한다. 여기까지 BPF 코드에서 전역변수로 선언된 data1 에 접근하기 위해 필요한 재배치 과정을 살펴보았다.
+이러한 재배치 작업이 끝난 후, 커널에서는 파일디스크립터와 오프셋을 이용하여 실제 메모리 주소를 구한 다음, (11:) 명령어의 첫 번째 명령어에 해당 메모리 주소의 하위 32 비트 주소를 저장하고, 두 번째 명령어에 상위 32 비트 주소를 저장한다. 마지막으로 BPF 코드를 실제 동작 가능한 머신코드(x86)으로 JIT(Just-In-Time) 컴파일한 결과물은 아래와 같다.
+
+```
+$ bpftool prog dump jited id 62928
+int handle__sched_switch(u64 * ctx):
+bpf_prog_474ea3c284cc8478_handle__sched_switch:
+; int handle__sched_switch(u64 *ctx)
+   0:	nopl   0x0(%rax,%rax,1)
+   5:	xchg   %ax,%ax
+   7:	push   %rbp
+   8:	mov    %rsp,%rbp
+   b:	sub    $0x40,%rsp
+  12:	push   %rbx
+  13:	push   %r13
+  15:	push   %r14
+  17:	push   %r15
+  19:	mov    %rdi,%rbx
+; struct task_struct *next = (struct task_struct *)ctx[2];
+  1c:	mov    0x10(%rbx),%r14
+; struct task_struct *prev = (struct task_struct *)ctx[1];
+  20:	mov    0x8(%rbx),%r13
+  24:	xor    %edi,%edi
+; if (prev->state == data1)
+  3e:	test   %r13,%r13
+  41:	jne    0x0000000000000047
+  43:	xor    %edi,%edi
+  45:	jmp    0x000000000000004b
+  47:	mov    0x18(%r13),%rdi
+; if (prev->state == data1)
+  4b:	movabs $0xffffba9640e6a004,%rsi
+  55:	mov    0x0(%rsi),%esi
+  58:	shl    $0x20,%rsi
+  5c:	sar    $0x20,%rsi
+; if (prev->state == data1)
+  60:	cmp    %rsi,%rdi
+  63:	jne    0x00000000000000cf
+```
+
+위의 (4b:) 명령어를 보면 r2 레지스터가 x86 CPU 의 rsi 레지스터로 치환되어있는 것과 재배치 작업이 끝난 data1 의 메모리 주소가 들어가 있는 것을 볼 수 있다. 여기까지 BPF 코드에서 전역변수로 선언된 data1 에 접근하기 위해 필요한 재배치 과정을 살펴보았다.

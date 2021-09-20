@@ -105,3 +105,43 @@ int probe_entry(struct pt_regs * ctx, struct file * file, size_t count, enum op 
   15: (bf) r9 = r8
   16: (77) r9 >>= 32
 ```
+
+```
+$ bpftool prog dump jited id 17
+int vfs_write_entry(struct pt_regs * ctx):
+bpf_prog_f3dfb13428230191_F:
+; int BPF_KPROBE(vfs_write_entry, struct file *file, const char *buf, size_t count, loff_t *pos)
+   0:	nopl   0x0(%rax,%rax,1)
+   5:	xchg   %ax,%ax
+   7:	push   %rbp
+   8:	mov    %rsp,%rbp
+   b:	mov    0x60(%rdi),%rsi
+   f:	mov    0x70(%rdi),%rdi
+; return probe_entry(ctx, file, count, WRITE);
+  13:	mov    $0x1,%edx
+  18:	callq  0x00000000000020c8
+; int BPF_KPROBE(vfs_write_entry, struct file *file, const char *buf, size_t count, loff_t *pos)
+  1d:	xor    %eax,%eax
+  1f:	leaveq
+  20:	retq
+
+int probe_entry(struct pt_regs * ctx, struct file * file, size_t count, enum op op):
+bpf_prog_41cced38f6644d9a_F:
+; static int probe_entry(struct pt_regs *ctx, struct file *file, size_t count, enum op op)
+   0:	nopl   0x0(%rax,%rax,1)
+   5:	xchg   %ax,%ax
+   7:	push   %rbp
+   8:	mov    %rsp,%rbp
+   b:	sub    $0x48,%rsp
+  12:	push   %rbx
+  13:	push   %r13
+  15:	push   %r14
+  17:	push   %r15
+  19:	mov    %rdx,-0x48(%rbp)
+  1d:	mov    %rsi,-0x40(%rbp)
+  21:	mov    %rdi,-0x38(%rbp)
+; __u64 pid_tgid = bpf_get_current_pid_tgid();
+  25:	callq  0xffffffffd3e3693c
+  2a:	mov    %rax,%r14
+  2d:	xor    %edi,%edi
+```

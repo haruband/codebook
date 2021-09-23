@@ -4,7 +4,7 @@
   - BGP 기반 다이렉트 라우팅 개발
 - eBPF CO-RE (Compile Once - Run Everywhere) 최적화
 - 오브젝트 스토리지 최적화 (Minio)
-  - Small files 문제 해결 (Inline Metadata/Data, ...)
+  - SmallFiles 문제 해결 (Inline Metadata/Data, ...)
 - DeltaLake 기반 LakeHouse 아키텍처 설계 및 개발
 
 ## 주요 경력

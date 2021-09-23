@@ -70,7 +70,7 @@ Disassembly of section kprobe/vfs_write:
        5:       95 00 00 00 00 00 00 00 exit
 ```
 
-위의 오브젝트를 보면 메인함수는 각각의 섹션에 위치해있지만 공통함수는 .text 섹션에 위치해있는 것을 볼 수 있다. (함수 선언 앞에 섹션을 지정하지 않으면 기본적으로 .text 섹션에 위치하게 된다.) 일반적으로 BPF 프로그램을 로딩할 때는 하나의 특정 섹션을 지정해서 사용하는데, 위와 같이 메인함수에서 호출하는 함수가 다른 섹션에 존재할 때는 어떻게 동작하는 것일까? 이 질문에 대한 대답은 [libbpf](https://github.com/torvalds/linux/blob/master/tools/lib/bpf/libbpf.c)를 기준으로 설명하도록 하겠다.
+위의 오브젝트를 보면 메인함수는 각각의 섹션에 위치해있지만 공통함수는 .text 섹션에 위치해있는 것을 볼 수 있다. (함수 선언 앞에 섹션을 지정하지 않으면 해당 함수는 기본적으로 .text 섹션에 위치하게 된다.) 일반적으로 BPF 프로그램을 로딩할 때는 하나의 특정 섹션을 지정해서 사용하는데, 위와 같이 메인함수에서 호출하는 함수가 다른 섹션에 존재할 때는 어떻게 동작하는 것일까? 이 질문에 대한 대답은 [libbpf](https://github.com/torvalds/linux/blob/master/tools/lib/bpf/libbpf.c)를 기준으로 설명하도록 하겠다.
 
 ```
 RELOCATION RECORDS FOR [kprobe/vfs_read]:

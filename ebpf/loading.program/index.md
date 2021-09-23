@@ -25,6 +25,8 @@ int BPF_KPROBE(vfs_write_entry, struct file *file, const char *buf, size_t count
 }
 ```
 
+위의 코드는 [bcc](https://github.com/iovisor/bcc) 의 [filetop](https://github.com/iovisor/bcc/blob/master/libbpf-tools/filetop.bpf.c) 예제코드이다. 해당 예제는 vfs_read 와 vfs_write 커널함수에서 각각 사용할 두 개의 BPF 메인함수와 두 개의 함수에서 사용하는 공통함수(probe_entry)로 구성되어 있다. 이를 컴파일한 결과는 아래와 같다.
+
 ```
 Disassembly of section .text:
 
@@ -68,6 +70,8 @@ Disassembly of section kprobe/vfs_write:
        5:       95 00 00 00 00 00 00 00 exit
 ```
 
+위의 오브젝트를 보면 메인함수는 각각의 섹션에 위치해있지만 공통함수는 .text 섹션에 위치해있는 것을 볼 수 있다. (함수 선언 앞에 섹션을 지정하지 않으면 기본적으로 .text 섹션에 위치하게 된다.) 일반적으로 BPF 프로그램을 로딩할 때는 하나의 특정 섹션을 지정해서 사용하는데, 위와 같이 메인함수에서 호출하는 함수가 다른 섹션에 존재할 때는 어떻게 동작하는 것일까? 이 질문에 대한 대답은 [libbpf](https://github.com/torvalds/linux/blob/master/tools/lib/bpf/libbpf.c)를 기준으로 설명하도록 하겠다.
+
 ```
 RELOCATION RECORDS FOR [kprobe/vfs_read]:
 OFFSET           TYPE                     VALUE
@@ -77,6 +81,8 @@ RELOCATION RECORDS FOR [kprobe/vfs_write]:
 OFFSET           TYPE                     VALUE
 0000000000000018 R_BPF_64_32              .text
 ```
+
+위의 재배치 목록 중 두 번째 항목은 kprobe/vfs_write 섹션의 0x18 오프셋에 해당하는 (3:) 명령어에서 .text 섹션에 접근한다는 의미이다. 그리고 (3:) 명령어의 인자를 보면 -1 (0xffffffff) 인데, 이는 해당 섹션의 -1 에 1 을 더한 위치를 의미한다. 즉, (3:) 명령어는 .text 섹션의 0x0 오프셋을 호출(call)하라는 뜻이다.
 
 ```
 $ bpftool prog dump xlated id 17

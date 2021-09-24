@@ -84,7 +84,34 @@ OFFSET           TYPE                     VALUE
 
 위의 재배치 목록 중 두 번째 항목은 kprobe/vfs_write 섹션의 0x18 오프셋에 해당하는 (3:) 명령어에서 .text 섹션에 접근한다는 의미이다. 그리고 kprobe/vfs_write 섹션의 (3:) 명령어의 인자를 보면 -1 (0xffffffff) 인 값인데, 이는 해당 섹션(.text)에서 -1 에 1 을 더한 위치를 의미한다. 즉, (3:) 명령어는 .text 섹션의 0x0 오프셋을 호출(call)하라는 뜻이다. 이러한 재배치 정보를 이용하여 실제 커널에 전달할 BPF 코드를 작성하는 과정은 다음과 같다.
 
-우선 메인함수를 BPF 코드의 시작 위치에 배치한다. 그리고 재배치 정보를 이용하여 메인함수에서 호출하는 함수를 BPF 코드의 뒤쪽에 추가하고, 해당 함수를 호출하는 명령어의 인자를 적절한 값으로 수정한다. 이 과정은 메인함수에서 호출한 함수에서도 다른 함수를 호출할 수 있기 때문에 재귀적으로 일어난다. 아래는 커널에 로딩된 BPF 코드를 덤프한 것이다.
+```
+Symbol table '.symtab' contains 20 entries:
+   Num:    Value          Size Type    Bind   Vis       Ndx Name
+     0: 0000000000000000     0 NOTYPE  LOCAL  DEFAULT   UND
+     1: 00000000000003c8     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_10
+     2: 00000000000003d0     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_11
+     3: 0000000000000430     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_13
+     4: 0000000000000468     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_14
+     5: 0000000000000088     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_2
+     6: 0000000000000138     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_4
+     7: 00000000000003b0     0 NOTYPE  LOCAL  DEFAULT     1 LBB2_8
+     8: 0000000000000000  1136 FUNC    LOCAL  DEFAULT     1 probe_entry
+     9: 0000000000000000  4160 OBJECT  LOCAL  DEFAULT     7 zero_value
+    10: 0000000000000000     0 SECTION LOCAL  DEFAULT     1 .text
+    11: 0000000000000000     0 SECTION LOCAL  DEFAULT     2 kprobe/vfs_read
+    12: 0000000000000000     0 SECTION LOCAL  DEFAULT     3 kprobe/vfs_write
+    13: 0000000000000000     0 SECTION LOCAL  DEFAULT     7 .bss
+    14: 0000000000000000    13 OBJECT  GLOBAL DEFAULT     5 LICENSE
+    15: 0000000000000000    32 OBJECT  GLOBAL DEFAULT     6 entries
+    16: 0000000000000004     1 OBJECT  GLOBAL DEFAULT     4 regular_file_only
+    17: 0000000000000000     4 OBJECT  GLOBAL DEFAULT     4 target_pid
+    18: 0000000000000000    48 FUNC    GLOBAL DEFAULT     2 vfs_read_entry
+    19: 0000000000000000    48 FUNC    GLOBAL DEFAULT     3 vfs_write_entry
+```
+
+일단 심볼 테이블을 이용하여 코드를 포함하고 있는 섹션에 있는 함수들을 모두 프로그램으로 등록한다. 위의 심볼 테이블을 보면, kprobe/vfs_read 섹션에 있는 vfs_read_entry 함수를, kprobe/vfs_write 섹션에 있는 vfs_write_entry 함수를, 그리고 .text 섹션에 있는 probe_entry 함수를 각각 프로그램으로 등록한다. 그리고 이 프로그램 목록을 이용하여 커널에 전달할 BPF 코드를 작성하는데, 간단히 kprobe/vfs_write 섹션이 어떻게 커널에 전달될 BPF 코드로 만들어지는지 살펴보자.
+
+우선 메인함수(vfs_write_entry)를 BPF 코드의 시작 위치에 배치한다. 그리고 재배치 정보(.text 섹션의 0x0 오프셋)와 앞에서 만든 프로그램 목록(.text 섹션의 0x0 오프셋에 해당하는 probe_entry 프로그램)을 이용하여 메인함수에서 호출하는 함수를 BPF 코드의 뒤쪽에 추가하고, 해당 함수를 호출하는 명령어의 인자를 적절한 값으로 수정한다. 이 과정은 메인함수에서 호출한 함수에서도 다른 함수를 호출할 수 있기 때문에 재귀적으로 일어난다. 아래는 커널에 로딩된 BPF 코드를 덤프한 것이다.
 
 ```
 $ bpftool prog dump xlated id 17

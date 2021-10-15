@@ -211,6 +211,11 @@ static int emit_call(u8 **pprog, void *func, void *ip)
   return emit_patch(pprog, func, ip, 0xE8);
 }
 
+noinline u64 __bpf_call_base(u64 r1, u64 r2, u64 r3, u64 r4, u64 r5)
+{
+  return 0;
+}
+
 static int do_jit(struct bpf_prog *bpf_prog, int *addrs, u8 *image, int oldproglen, struct jit_context *ctx, bool jmp_padding)
 {
   for (i = 1; i <= insn_cnt; i++, insn++) {
@@ -277,4 +282,6 @@ int probe_entry(struct pt_regs * ctx, struct file * file, size_t count, enum op 
   ...
 ```
 
-함수를 호출하는 명령어의 코드는 BPF_JMP | BPF_CALL (0x85) 이다.
+함수를 호출하는 명령어의 코드는 BPF_JMP | BPF_CALL (0x85) 이다. do_jit 함수에서 해당 케이스를 살펴보면, 호출되는 공통함수의 주소를 \_\_bpf_call_base + imm32 로 설정하는 부분이 있는데, 이는 공통함수를 JIT 컴파일한 버퍼의 주소를 나타내고 있다. 기준함수(\_\_bpf_call_base)는 64 비트인 함수의 주소를 32 비트인 기준함수에서의 오프셋으로 표현하기 위해 사용된다. 그래서 emit_call 함수에서 공통함수의 버퍼의 주소와 현재 명령어의 주소를 이용하여 공통함수를 호출하는 x86 머신코드를 생성한다.
+
+여기까지 리눅스 커널에서 BPF 코드를 실행하는 과정에 대해 살펴보았다.

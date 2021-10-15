@@ -206,6 +206,11 @@ static void emit_mov_imm32(u8 **pprog, bool sign_propagate, u32 dst_reg, const u
   ...
 }
 
+static int emit_call(u8 **pprog, void *func, void *ip)
+{
+  return emit_patch(pprog, func, ip, 0xE8);
+}
+
 static int do_jit(struct bpf_prog *bpf_prog, int *addrs, u8 *image, int oldproglen, struct jit_context *ctx, bool jmp_padding)
 {
   for (i = 1; i <= insn_cnt; i++, insn++) {
@@ -214,12 +219,21 @@ static int do_jit(struct bpf_prog *bpf_prog, int *addrs, u8 *image, int oldprogl
       case BPF_ALU64 | BPF_MOV | BPF_K:
         emit_mov_imm32(&prog, BPF_CLASS(insn->code) == BPF_ALU64, dst_reg, imm32);
         break;
+
+      case BPF_JMP | BPF_CALL:
+        func = (u8 *) __bpf_call_base + imm32;
+        ...
+        if (!imm32 || emit_call(&prog, func, image + addrs[i - 1]))
+          return -EINVAL;
+        break;
     }
     ...
   }
 ```
 
-위의 do_jit 함수는 리눅스 커널에서 BPF 코드를 x86 머신코드로 JIT 컴파일하는 함수이다. 기본적인 동작 원리는 적당한 크기의 버퍼를 미리 생성해놓고 BPF 코드를 하나씩 x86 머신코드로 변환해서 버퍼를 순서대로 채워나가는 방식이다. 가장 간단한 레지스터에 상수값을 저장하는 명령어가 어떻게 변환되는지 살펴보자. 아래는 상수값을 레지스터에 저장하는 (2:) 명령어가 x86 머신코드로 변환된 결과를 보여주고 있다.
+위의 do_jit 함수는 리눅스 커널에서 BPF 코드를 x86 머신코드로 JIT 컴파일하는 함수이다. 기본적인 동작 원리는 적당한 크기의 버퍼를 미리 생성해놓고 BPF 코드를 하나씩 x86 머신코드로 변환해서 버퍼를 순서대로 채워나가는 방식이다.
+
+우선, 가장 간단한 레지스터에 상수값을 저장하는 명령어가 어떻게 변환되는지 살펴보자. 아래는 상수값을 레지스터에 저장하는 (2:) 명령어가 x86 머신코드로 변환된 결과를 보여주고 있다.
 
 ```c
 $ bpftool prog dump xlated id 17
@@ -235,4 +249,32 @@ int vfs_write_entry(struct pt_regs * ctx):
   ...
 ```
 
-상수값을 레지스터에 저장하는 명령어의 코드는 BPF_ALU64 | BPF_MOV | BPF_K (0xb7) 이다. do_jit 함수에서 해당 케이스를 살펴보면, emit_mov_imm32 함수를 호출하는데, 해당 함수에서는 상수값을 레지스터에 저장하는 x86 명령어의 코드인 0xb8 과 r3 레지스터에 해당하는 edx 레지스터와 상수값(1)을 이용하여 x86 머신코드를 버퍼에 추가하는 것을 볼 수 있다. 인터프리팅 방식과 달리 JIT 컴파일러는 실제 x86 CPU 에서 바로 실행될 수 있는 x86 머신코드를 생성하기 때문에 BPF 코드의 레지스터를 x86 CPU 에서 바로 사용가능한 레지스터로 변환한다. 이 레지스터 할당은 위의 reg2hex 배열에 선언된 것처럼 1:1 로 매칭되기 때문에 오버헤드 없이 진행이 가능하다. 즉, JIT 컴파일 방식은 BPF 코드를 x86 머신코드로 미리 변환해놓고, x86 CPU 레지스터도 직접 활용하기 때문에 인터프리팅 방식에 비해 월등히 성능이 좋을 수 밖에 없다.
+상수값을 레지스터에 저장하는 명령어의 코드는 BPF_ALU64 | BPF_MOV | BPF_K (0xb7) 이다. do_jit 함수에서 해당 케이스를 살펴보면, emit_mov_imm32 함수를 호출하는데, 해당 함수에서는 상수값을 레지스터에 저장하는 x86 명령어의 코드인 0xb8 과 r3 레지스터에 해당하는 edx 레지스터와 상수값(1)을 이용하여 x86 머신코드를 버퍼에 추가하는 것을 볼 수 있다. 인터프리팅 방식과 달리 JIT 컴파일러는 실제 x86 CPU 에서 바로 실행될 수 있는 x86 머신코드를 생성하기 때문에 BPF 코드의 레지스터를 x86 CPU 에서 바로 사용가능한 레지스터로 변환한다. 이 레지스터 할당은 위의 reg2hex 배열에 선언된 것처럼 1:1 로 매칭되기 때문에 오버헤드 없이 진행이 가능하다. 즉, JIT 컴파일 방식은 BPF 코드를 x86 머신코드로 미리 변환해놓고, x86 CPU 레지스터도 바로 할당해서 사용하기 때문에 인터프리팅 방식에 비해 월등히 성능이 좋을 수 밖에 없다.
+
+다음으로, 메인함수(vfs_write_entry)에서 공통함수((probe_entry)를 호출하는 명령어가 어떻게 변환되는지 살펴보자. 아래는 해당 명령어가 x86 머신코드로 변환된 결과를 보여주고 있다.
+
+```c
+$ bpftool prog dump xlated id 17
+int vfs_write_entry(struct pt_regs * ctx):
+  ...
+   3: (85) call pc+2
+  ...
+
+int probe_entry(struct pt_regs * ctx, struct file * file, size_t count, enum op op):
+   6: (7b) *(u64 *)(r10 -72) = r3
+   7: (7b) *(u64 *)(r10 -64) = r2
+  ...
+
+$ bpftool prog dump jited id 17
+int vfs_write_entry(struct pt_regs * ctx):
+  ...
+  18:	callq  0x00000000000020c8
+  ...
+
+int probe_entry(struct pt_regs * ctx, struct file * file, size_t count, enum op op):
+   0:	nopl   0x0(%rax,%rax,1)
+   5:	xchg   %ax,%ax
+  ...
+```
+
+함수를 호출하는 명령어의 코드는 BPF_JMP | BPF_CALL (0x85) 이다.

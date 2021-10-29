@@ -16,9 +16,8 @@
   - 스토리지 최적화 (LocalPersistentVolume with HDD/SSD/NVMe, ...)
   - 메모리 최적화 (swapping, ...)
 - 쿠버네티스 클러스터 모니터링
-  - Prometheus/Grafana/AlertManager
-  - ElasticSearch/Fluentd/Kibana/Heartbeat
-  - Datadog 솔루션 활용
+  - Elastic 솔루션 (ElasticSearch/Kibana/Filebeat/Metricbeat/Heartbeat/ApmServer)
+  - Datadog 솔루션
 - 데이터 엔지니어링
   - DeltaLake 기반 LakeHouse 아키텍처 설계 및 개발
   - Minio/Mongodb/ElasticSearch/Kafka/Spark/Airflow/...

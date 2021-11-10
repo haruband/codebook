@@ -2,13 +2,30 @@
 
 외부 환경에 의존하지 않고 우리 스스로 해당 문제를 해결할 수 있는 방법은 클러스터 내부에서 외부 IP 를 사용하지 않는 것이다. 이를 위해 우리가 선택할 수 있는 옵션은 첫 번째는 내부 DNS 를 사용하는 것이고, 두 번째는 eBPF (혹은 IPTables) 를 사용하여 외부 IP 를 강제로 내부 IP 로 리다이렉션(redirection)하는 것이다. 그리고 해당 문제는 Pod 에서 외부 IP 를 접근하는 경우 뿐 아니라, 호스트 네트워크를 사용하는 Pod 이나 Kubelet 에서 외부 IP 를 접근하는 경우도 고려할 필요가 있을 수 있다. (우리 같은 경우는 클러스터 내부에 컨테이너 레지스트리 서버를 운영 중이고, Kubelet 에서 컨테이너 이미지를 가져올 때 컨테이너 레지스트리 서버의 외부 도메인 주소를 이용하고 있었다.)
 
+일반적으로 외부 IP 로 접근하면 인그레스게이트웨이(ingressgateway)를 통해 클러스터 내부 서비스로 요청이 전달된다. 이는 클러스터 내부에서 외부 IP 로 접근할 때도 동일한데, 위의 두 가지 방법으로 외부 IP 를 강제로 내부 IP 로 변경해버리면 인그레스게이트웨이를 통하지 않고 직접 클러스터 내부 서비스에 접근하는 것이기 때문에 호스트 네트워크를 사용하는 Pod 이나 Kubelet 에서는 문제가 발생한다. 이는 [다른 글](https://velog.io/@haruband/K8SCilium-Socket-Based-LoadBalancing-%EA%B8%B0%EB%B2%95)에서 소개했던 소켓 기반 로드밸런싱 기능을 이용하면 해결할 수 있는데, 소켓 기반 로드밸런싱은 아래와 같이 각 노드의 루트 CGROUP 부터 모든 CGROUP 의 소켓 시스템콜에 연결된 BPF 프로그램을 통해 동작하기 때문에, 이를 이용하면 호스트 네트워크에서도 클러스터 내부 서비스에 직접 접근이 가능해진다.
+
+```bash
+$ bpftool cgroup tree
+CgroupPath
+ID       AttachType      AttachFlags     Name
+/sys/fs/cgroup/unified
+845      connect4                        sock4_connect
+825      connect6                        sock6_connect
+853      post_bind4                      sock4_post_bind
+833      post_bind6                      sock6_post_bind
+857      sendmsg4                        sock4_sendmsg
+837      sendmsg6                        sock6_sendmsg
+861      recvmsg4                        sock4_recvmsg
+841      recvmsg6                        sock6_recvmsg
+849      getpeername4                    sock4_getpeerna
+829      getpeername6                    sock6_getpeerna
+```
+
 우선 첫 번째 내부 DNS 를 사용하는 경우를 살펴보자.
 
 가장 간단한 방법은 모든 노드의 /etc/hosts 를 이용하여 외부 도메인 주소를 강제로 내부 IP 로 변경해버리는 것이다. 하지만 이는 IP 만 변경해주는 것이기 때문에 외부에서 접근하는 포트와 내부에서 접근하는 포트가 다른 경우에는 사용할 수 없다.
 
 두 번째는 Cilium 에서 제공하는 LRP(LocalRedirectPolicy) 라는 기능을 사용하는 경우이다.
-
-호스트 네트워크를 사용하는 Pod 이나 Kubelet 의 경우는 [다른 글](https://velog.io/@haruband/K8SCilium-Socket-Based-LoadBalancing-%EA%B8%B0%EB%B2%95)에서 소개했던 소켓 기반 로드밸런싱 기능을 이용하면 해결할 수 있다.
 
 ```
 apiVersion: "cilium.io/v2"

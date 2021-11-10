@@ -5,3 +5,72 @@
 우선 첫 번째 내부 DNS 를 사용하는 경우를 살펴보자.
 
 하지만 첫 번째 내부 DNS 를 사용하는 것은 도메인에 해당하는 IP 만 변경해주는 것이기 때문에 외부에서 접근하는 포트와 내부에서 접근하는 포트가 다른 경우에는 사용할 수 없다.
+
+두 번째는 Cilium 에서 제공하는 LRP(LocalRedirectPolicy) 라는 기능을 사용하는 경우이다.
+
+```
+apiVersion: "cilium.io/v2"
+kind: CiliumLocalRedirectPolicy
+metadata:
+  name: nginx-lrp
+spec:
+  redirectFrontend:
+    addressMatcher:
+      ip: "10.10.10.10"
+      toPorts:
+        - port: "8080"
+          protocol: TCP
+  redirectBackend:
+    localEndpointSelector:
+      matchLabels:
+        run: nginx
+    toPorts:
+      - port: "80"
+        protocol: TCP
+```
+
+```bash
+$ kubectl get pods -o wide
+NAME    READY   STATUS    RESTARTS   AGE     IP             NODE     NOMINATED NODE   READINESS GATES
+nginx   1/1     Running   0          7m36s   192.168.0.80   master   <none>           <none>
+
+node0 $ cilium service list
+ID   Frontend              Service Type    Backend
+1    10.96.0.1:443         ClusterIP       1 => 172.26.50.200:6443
+2    10.96.0.10:53         ClusterIP       1 => 192.168.1.96:53
+                                           2 => 192.168.1.219:53
+3    10.96.0.10:9153       ClusterIP       1 => 192.168.1.96:9153
+                                           2 => 192.168.1.219:9153
+4    10.108.175.91:80      ClusterIP       1 => 192.168.0.80:80
+5    172.26.50.235:80      LoadBalancer    1 => 192.168.0.80:80
+6    172.26.50.200:30904   NodePort        1 => 192.168.0.80:80
+7    0.0.0.0:30904         NodePort        1 => 192.168.0.80:80
+8    10.10.10.10:8080      LocalRedirect   1 => 192.168.0.80:80
+```
+
+```bash
+node0 $ curl http://10.10.10.10:8080
+<!DOCTYPE html>
+<html>
+<head>
+<title>Welcome to nginx!</title>
+<style>
+html { color-scheme: light dark; }
+body { width: 35em; margin: 0 auto;
+font-family: Tahoma, Verdana, Arial, sans-serif; }
+</style>
+</head>
+<body>
+<h1>Welcome to nginx!</h1>
+<p>If you see this page, the nginx web server is successfully installed and
+working. Further configuration is required.</p>
+
+<p>For online documentation and support please refer to
+<a href="http://nginx.org/">nginx.org</a>.<br/>
+Commercial support is available at
+<a href="http://nginx.com/">nginx.com</a>.</p>
+
+<p><em>Thank you for using nginx.</em></p>
+</body>
+</html>
+```

@@ -6,7 +6,7 @@
 
 ## _어떻게 문제가 발생했는가???_
 
-문제의 원인은 비교적 쉽게 파악하였는데, 아래 쿠버네티스 노드에 설치된 CGROUP 에 연결된 BPF 프로그램 목록을 살펴보자.
+문제의 원인은 비교적 쉽게 파악하였는데, 아래 쿠버네티스 노드의 모든 CGROUP 에 연결된 BPF 프로그램 목록을 살펴보자.
 
 ```bash
 $ bpftool cgroup tree
@@ -27,10 +27,10 @@ ID       AttachType      AttachFlags     Name
     727      recvmsg6
     729      getpeername4
     724      getpeername6
-/sys/fs/cgroup/kubepods.slice/kubepods-burstable.slice/kubepods-burstable-pod0e6821bc_7c8d_4372_be96_726b9a333b36.slice/docker-2cce194b18366e931f4295f11eff9c8d6bf2ad4494c7be2135ad32424e219a15.scope
-    740      device          multi
 ...
 ```
+
+소켓 기반 로드밸런싱에 사용되는 BPF 프로그램이 루트 CGROUP 이 아닌 특정 컨테이너의 하위 CGROUP 에 연결되어 있었다. 그리고 아래 출력을 보면 알 수 있듯이, 해당 컨테이너는 다름 아닌 Cilium 에이전트 컨테이너였다. 이는 심각한 문제를 발생시키는데, 이유는 **소켓 시스템콜은 자신이 속한 CGROUP 만이 아니라 루트 CGROUP 까지 모든 부모 CGROUP 에 연결된 BPF 프로그램을 실행하므로, Cilium 에이전트는 루트 CGROUP 에만 필요한 BPF 프로그램을 연결하여 소켓 기반 로드밸런싱을 처리하기 때문이다.**
 
 ```bash
 $ kubectl get pods cilium-mldd6 -n kube-system -o yaml
@@ -44,6 +44,8 @@ status:
     name: cilium-agent
 ...
 ```
+
+소켓 기반 로드밸런싱에 사용되는 BPF 프로그램은 Cilium 에이전트에서 CGroupV2 파일시스템을 /run/cilium/cgroupv2 디렉토리에 마운트한 후 루트 CGROUP 인 최상위 디렉토리에 연결하는데, 우분투 21.10 에서는 도커의 CGroup 네임스페이스의 기본값이 Private 으로 변경되어 최상위 디렉토리가 루트 CGROUP 이 아닌 해당 컨테이너의 CGROUP 이 되면서 발생한 문제였다.
 
 ## _어떻게 문제를 해결했는가???_
 

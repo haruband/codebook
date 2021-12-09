@@ -2,6 +2,8 @@
 
 ## _어떠한 문제가 발생했는가???_
 
+개발 서버에 쿠버네티스와 Cilium 을 설치하였는데 아래와 같이 coredns 가 동작하지 않는 문제가 발생하였다. 정확한 문제를 파악하기 위해 관련 정보들을 하나씩 분석해보도록 하자.
+
 ```bash
 # kubectl get pods -o wide -n kube-system
 NAMESPACE     NAME                              READY   STATUS    RESTARTS   AGE     IP              NODE    NOMINATED NODE   READINESS GATES
@@ -9,7 +11,11 @@ NAMESPACE     NAME                              READY   STATUS    RESTARTS   AGE
 kube-system   coredns-749558f7dd-w6jdj          0/1     Running   0          2m59s   10.0.0.113      node0   <none>           <none>
 kube-system   coredns-749558f7dd-xppfp          0/1     Running   0          2m59s   10.0.0.250      node0   <none>           <none>
 ...
+```
 
+아래와 같이 원인을 알 수 없는 이유로 상태 확인이 실패하고 있었다. 현재 상황에서 유추해볼 수 있는 것은 상태 확인을 하는 호스트(kubelet)와 Pod(coredns) 간의 네트워크에 어떠한 문제가 생긴 것이다. 그래서 호스트와 Pod(coredns) 양쪽에서 tcpdump 로 확인해보니, 호스트에서 보낸 패킷을 Pod(coredns) 에서 받은 후 응답 패킷을 보냈지만 호스트에서는 해당 응답 패킷을 받지 못하였다. 일단 호스트가 Pod(coredns) 에서 보낸 응답 패킷을 알 수 없는 이유로 드롭하고 있다고 예상할 수 있다.
+
+```bash
 # kubectl describe pod coredns-749558f7dd-w6jdj -n kube-system
 Name:                 coredns-749558f7dd-w6jdj
 Namespace:            kube-system
@@ -19,7 +25,9 @@ Events:
   ----     ------                  ----   ----               -------
   Warning  Unhealthy  4m51s                 kubelet  Readiness probe failed: Get "http://10.0.0.113:8181/ready": dial tcp 10.0.0.113:8181: i/o timeout (Client.Timeout exceeded while awaiting headers)
   Warning  Unhealthy  3m7s (x5 over 3m47s)  kubelet  Liveness probe failed: Get "http://10.0.0.113:8080/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
+```
 
+```bash
 # systemd-cgls
 Control group /:
 ...

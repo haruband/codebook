@@ -78,7 +78,6 @@ Control group /:
 ```bash
 # ip route get 10.0.0.113
 10.0.0.113 dev cilium_host src 10.0.0.253 uid 0
-    cache
 
 # ip addr show
 ...
@@ -104,33 +103,34 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eno1
 ```
 
-여기까지 분석한 내용들을 정리해보면, 호스트에서 패킷을 보낼 때는 cilium_host 네트워크 장치를 사용했지만, 응답 패킷은 lxc3c160d6c7aa0 네트워크 장치에서 처리하기 때문에 RPFilter 에 의해 해당 응답 패킷이 드롭되는 것이다. 사실 패킷을 보내는 장치와 받는 장치가 다른 것은 Cilium 에서는 일반적인 동작 방식이기 때문에 Cilium 은 기본적으로 자신이 관리하는 모든 네트워크 장치에서 RPFilter 를 사용하지 않도록 설정해둔다. 그런데 왜 RPFilter 가 작동할 것일까?
-
-## _어떻게 문제가 발생했는가???_
+여기까지 분석한 내용들을 정리해보면, 호스트에서 패킷을 보낼 때는 cilium_host 네트워크 장치를 사용했지만, 응답 패킷은 lxc3c160d6c7aa0 네트워크 장치에서 처리하기 때문에 RPFilter 에 의해 해당 응답 패킷이 드롭되는 것이다. 하지만, 패킷을 보내는 장치와 받는 장치가 다른 것은 Cilium 에서는 일반적인 동작 방식 중 하나이기 때문에 Cilium 은 기본적으로 자신이 관리하는 모든 네트워크 장치에서 RPFilter 를 사용하지 않도록 설정해둔다. 즉, **해당 문제는 아래와 같이 Cilium 에서 사용하지 않도록 설정해둔 RPFilter 가 알 수 없는 이유로 사용되면서 발생한 문제이다.**
 
 ```bash
-# cat /etc/sysctl.d/10-network-security.conf
-net.ipv4.conf.default.rp_filter=2
-net.ipv4.conf.all.rp_filter=2
-
-# cat /usr/lib/udev/rules.d/99-systemd.rules
-...
-# Apply sysctl variables to network devices (and only to those) as they appear.
-ACTION=="add", SUBSYSTEM=="net", KERNEL!="lo", RUN+="/lib/systemd/systemd-sysctl --prefix=/net/ipv4/conf/$name --prefix=/net/ipv4/neigh/$name --prefix=/net/ipv6/conf/$name --prefix=/net/ipv6/neigh/$name"
-...
-
 # sysctl net.ipv4.conf.lxc3c160d6c7aa0.rp_filter
 net.ipv4.conf.lxc3c160d6c7aa0.rp_filter = 2
 ```
 
-## _어떻게 문제를 해결했는가???_
+## _어떻게 문제가 발생했는가???_
+
+Cilium 은 새로운 네트워크 장치를 만들 때 마다 RPFilter 를 사용하지 않도록 설정한다. 그런데 왜 RPFilter 가 사용된 것일까? 그 이유는 새로운 네트워크 장치가 추가될 때 마다 UDEV 에 의해 systemd-sysctl 이 실행되는데, 그 때 사용되는 모든 네트워크 장치의 기본 설정이 RPFilter 를 사용하는 것이기 때문이다. 즉, **Cilium 에서 새로운 네트워크 장치를 만든 직후 RPFilter 를 사용하지 않도록 설정하지만, 곧이어 UDEV 에 의해 실행되는 systemd-sysctl 이 해당 네트워크 장치의 RPFilter 를 다시 사용하도록 만들어 버린 것이다.**
 
 ```bash
-# kubectl get pods -o wide -n kube-system
-NAMESPACE     NAME                              READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
-kube-system   coredns-749558f7dd-d96rn          1/1     Running   0          82s   10.0.0.40       node0   <none>           <none>
-kube-system   coredns-749558f7dd-dhfdw          1/1     Running   0          82s   10.0.0.244      node0   <none>           <none>
+# cat /usr/lib/udev/rules.d/99-systemd.rules
+...
+ACTION=="add", SUBSYSTEM=="net", KERNEL!="lo", RUN+="/lib/systemd/systemd-sysctl --prefix=/net/ipv4/conf/$name --prefix=/net/ipv4/neigh/$name --prefix=/net/ipv6/conf/$name --prefix=/net/ipv6/neigh/$name"
 
+# cat /etc/sysctl.d/10-network-security.conf
+net.ipv4.conf.default.rp_filter=2
+net.ipv4.conf.all.rp_filter=2
+```
+
+## _어떻게 문제를 해결했는가???_
+
+해당 문제를 해결할 수 있는 방법 두 가지를 소개하도록 하겠다.
+
+첫 번째는 Cilium 이 제공하는 엔드포인트 라우팅 기능을 사용하는 것이다. 이 기능을 사용하면, 아래와 같이 각각의 엔드포인트를 위한 라우팅 정보가 추가된다. 즉, 목적지 주소가 10.0.0.0/24 인 모든 패킷을 cilium_host 네트워크 장치를 통해 전달하는 것이 아니고, 각각의 목적지 주소에 해당하는 Pod 과 연결된 네트워크 장치로 패킷을 바로 전달해버리는 것이다.
+
+```bash
 # route -n
 Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
@@ -143,11 +143,21 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 10.0.1.0        172.26.50.201   255.255.255.0   UG    0      0        0 eno1
 172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
 172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eno1
+```
+
+아래의 Pod(coredns) 의 주소인 10.0.0.40 이 lxc3b28c7d86cd3 네트워크 장치로 바로 전달되는 라우팅 정보를 확인할 수 있다.
+
+```bash
+# kubectl get pods -o wide -n kube-system
+NAMESPACE     NAME                              READY   STATUS    RESTARTS   AGE   IP              NODE    NOMINATED NODE   READINESS GATES
+kube-system   coredns-749558f7dd-d96rn          1/1     Running   0          82s   10.0.0.40       node0   <none>           <none>
+kube-system   coredns-749558f7dd-dhfdw          1/1     Running   0          82s   10.0.0.244      node0   <none>           <none>
 
 # ip route get 10.0.0.40
 10.0.0.40 dev lxc3b28c7d86cd3 src 172.26.50.200 uid 0
-    cache
 ```
+
+두 번째는 systemd-sysctl 이 사용하는 기본 설정을 변경해버리는 것이다. lxc 로 시작되는 이름을 가진 모든 네트워크 장치의 RPFilter 를 사용하지 않도록 설정해두면 된다.
 
 ```bash
 # cat /etc/sysctl.d/99-override_cilium_rp_filter.conf
@@ -156,3 +166,5 @@ net.ipv4.conf.lxc*.rp_filter=0
 # sysctl net.ipv4.conf.lxc3b28c7d86cd3.rp_filter
 net.ipv4.conf.lxc3b28c7d86cd3.rp_filter = 0
 ```
+
+여기까지 RPFilter 로 인해 발생하는 문제와 해결책에 대해 살펴보았다.

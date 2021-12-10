@@ -10,10 +10,9 @@ NAMESPACE     NAME                              READY   STATUS    RESTARTS   AGE
 ...
 kube-system   coredns-749558f7dd-w6jdj          0/1     Running   0          2m59s   10.0.0.113      node0   <none>           <none>
 kube-system   coredns-749558f7dd-xppfp          0/1     Running   0          2m59s   10.0.0.250      node0   <none>           <none>
-...
 ```
 
-아래와 같이 원인을 알 수 없는 이유로 상태 확인이 실패하고 있었다. 현재 상황에서 유추해볼 수 있는 것은 상태 확인을 하는 호스트(kubelet)와 Pod(coredns) 간의 네트워크에 어떠한 문제가 생긴 것이다. 그래서 호스트와 Pod(coredns) 양쪽에서 tcpdump 로 확인해보니, 호스트에서 보낸 패킷을 Pod(coredns) 에서 받은 후 응답 패킷을 보냈지만 호스트에서는 해당 응답 패킷을 받지 못하였다. 일단 호스트가 Pod(coredns) 에서 보낸 응답 패킷을 알 수 없는 이유로 드롭하고 있다고 볼 수 있다.
+아래와 같이 원인을 알 수 없는 이유로 상태 확인이 실패하고 있었다. 현재 상황에서 예상해볼 수 있는 것은 상태 확인(readiness/linveness)을 하는 호스트(kubelet)와 Pod(coredns) 간의 네트워크에 어떠한 문제가 생긴 것이다. 그래서 호스트와 Pod(coredns) 양쪽에서 tcpdump 로 확인해보니, 호스트에서 보낸 패킷을 Pod(coredns) 에서 받은 후 응답 패킷을 보냈지만 호스트에서는 해당 응답 패킷을 받지 못하였다. 일단 호스트가 Pod(coredns) 에서 보낸 응답 패킷을 알 수 없는 이유로 드롭하고 있다고 볼 수 있다.
 
 ```bash
 # kubectl describe pod coredns-749558f7dd-w6jdj -n kube-system
@@ -36,7 +35,6 @@ Events:
 ...
 Dec 09 06:46:20 node0 kernel: IPv4: martian source 10.0.0.253 from 10.0.0.113, on dev lxc3c160d6c7aa0
 Dec 09 06:46:20 node0 kernel: ll header: 00000000: 8a 95 96 c7 1f 85 0a 50 d2 29 32 ba 08 00
-...
 ```
 
 위와 같이 마션소스 로그를 활성화한 후 커널 로그를 확인해보니 예상대로 관련 로그를 찾을 수 있었다. 위의 로그는 lxc3c160d6c7aa0 네트워크 장치에서 출발지 주소(10.0.0.113)와 목적지 주소(10.0.0.253)인 패킷을 드롭했다는 내용이다. 이제 왜 이 패킷이 드롭되었는지 분석해보도록 하자.
@@ -50,7 +48,6 @@ Control group /:
   │ ├─kubepods-burstable-poddcf43d8a_eee1_466f_be7e_59e917cb8528.slice
   │ │ └─crio-17b0acd8c8c28fa7daabfafa4b096fa0eb1bdc3f09dc25d206c507f7d2cf849d.scope …
   │ │   └─556675 /coredns -conf /etc/coredns/Corefile
-...
 
 # nsenter -t 556675 -n bash
 # ip addr show
@@ -62,7 +59,7 @@ Control group /:
        valid_lft forever preferred_lft forever
 ```
 
-해당 네트워크 장치 이름(eth0@if417)은 417 번 네트워크 장치와 연결된 장치라는 의미이고, 아래와 같이 호스트에서 해당 네트워크 장치인 lxc3c160d6c7aa0 를 찾을 수 있다. 즉, 위의 마션소스 로그는 Pod(coredns) 과 연결된 호스트의 네트워크 장치(lxc3c160d6c7aa0)에서 응답 패킷을 처리하는 동안 발생한 것이다.
+해당 네트워크 장치의 이름(eth0@if417)은 417 번 네트워크 장치와 연결된 장치라는 의미이고, 아래와 같이 호스트에서 해당 네트워크 장치인 lxc3c160d6c7aa0 를 찾을 수 있다. 즉, 위의 마션소스 로그는 Pod(coredns) 과 연결된 호스트의 네트워크 장치(lxc3c160d6c7aa0)에서 응답 패킷을 처리하는 동안 발생한 것이다.
 
 ```bash
 # ip addr show
@@ -141,11 +138,10 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 10.0.0.244      0.0.0.0         255.255.255.255 UH    0      0        0 lxcd27b1006c4c8
 10.0.0.253      0.0.0.0         255.255.255.255 UH    0      0        0 cilium_host
 10.0.1.0        172.26.50.201   255.255.255.0   UG    0      0        0 eno1
-172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
 172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eno1
 ```
 
-아래의 Pod(coredns) 의 주소인 10.0.0.40 이 lxc3b28c7d86cd3 네트워크 장치로 바로 전달되는 라우팅 정보를 확인할 수 있다.
+아래와 같이 Pod(coredns) 의 주소인 10.0.0.40 이 lxc3b28c7d86cd3 네트워크 장치로 바로 전달되는 라우팅 정보를 확인할 수 있다.
 
 ```bash
 # kubectl get pods -o wide -n kube-system

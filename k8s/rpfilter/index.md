@@ -13,7 +13,7 @@ kube-system   coredns-749558f7dd-xppfp          0/1     Running   0          2m5
 ...
 ```
 
-아래와 같이 원인을 알 수 없는 이유로 상태 확인이 실패하고 있었다. 현재 상황에서 유추해볼 수 있는 것은 상태 확인을 하는 호스트(kubelet)와 Pod(coredns) 간의 네트워크에 어떠한 문제가 생긴 것이다. 그래서 호스트와 Pod(coredns) 양쪽에서 tcpdump 로 확인해보니, 호스트에서 보낸 패킷을 Pod(coredns) 에서 받은 후 응답 패킷을 보냈지만 호스트에서는 해당 응답 패킷을 받지 못하였다. 일단 호스트가 Pod(coredns) 에서 보낸 응답 패킷을 알 수 없는 이유로 드롭하고 있다고 예상할 수 있다.
+아래와 같이 원인을 알 수 없는 이유로 상태 확인이 실패하고 있었다. 현재 상황에서 유추해볼 수 있는 것은 상태 확인을 하는 호스트(kubelet)와 Pod(coredns) 간의 네트워크에 어떠한 문제가 생긴 것이다. 그래서 호스트와 Pod(coredns) 양쪽에서 tcpdump 로 확인해보니, 호스트에서 보낸 패킷을 Pod(coredns) 에서 받은 후 응답 패킷을 보냈지만 호스트에서는 해당 응답 패킷을 받지 못하였다. 일단 호스트가 Pod(coredns) 에서 보낸 응답 패킷을 알 수 없는 이유로 드롭하고 있다고 볼 수 있다.
 
 ```bash
 # kubectl describe pod coredns-749558f7dd-w6jdj -n kube-system
@@ -27,6 +27,22 @@ Events:
   Warning  Unhealthy  3m7s (x5 over 3m47s)  kubelet  Liveness probe failed: Get "http://10.0.0.113:8080/health": context deadline exceeded (Client.Timeout exceeded while awaiting headers)
 ```
 
+이럴 경우 대부분은 패킷의 잘못된 출발지 주소로 인해 발생하는 마션소스(martian source) 문제이다. 해당 문제가 맞는지 확인해보자.
+
+```bash
+# sysctl -w net.ipv4.conf.all.log_martians=1
+
+# journal -k -f
+...
+Dec 09 06:46:20 node0 kernel: IPv4: martian source 10.0.0.253 from 10.0.0.113, on dev lxc3c160d6c7aa0
+Dec 09 06:46:20 node0 kernel: ll header: 00000000: 8a 95 96 c7 1f 85 0a 50 d2 29 32 ba 08 00
+...
+```
+
+위와 같이 마션소스 로그를 활성화한 후 커널 로그를 확인해보니 예상대로 관련 로그를 찾을 수 있었다. 위의 로그는 lxc3c160d6c7aa0 네트워크 장치에서 출발지 주소(10.0.0.113)와 목적지 주소(10.0.0.253)인 패킷을 드롭했다는 내용이다. 이제 왜 이 패킷이 드롭되었는지 분석해보도록 하자.
+
+우선 아래와 같이 Pod(coredns) 의 네트워크 장치와 연결된 호스트의 네트워크 장치(VETH)를 확인해보자. coredns 의 PID(556675) 를 이용하여 nsenter 로 네트워크 네임스페이스 변경 후 네트워크 장치를 확인해보면 416 번 네트워크 장치를 볼 수 있다.
+
 ```bash
 # systemd-cgls
 Control group /:
@@ -37,34 +53,46 @@ Control group /:
 ...
 
 # nsenter -t 556675 -n bash
-<556675> # ip addr show
+# ip addr show
 416: eth0@if417: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
     link/ether 0a:50:d2:29:32:ba brd ff:ff:ff:ff:ff:ff link-netns 621e8a57-2e46-4753-b9f1-c947fed6bdf6
     inet 10.0.0.113/32 scope global eth0
        valid_lft forever preferred_lft forever
     inet6 fe80::850:d2ff:fe29:32ba/64 scope link
        valid_lft forever preferred_lft forever
+```
+
+해당 네트워크 장치 이름(eth0@if417)은 417 번 네트워크 장치와 연결된 장치라는 의미이고, 아래와 같이 호스트에서 해당 네트워크 장치인 lxc3c160d6c7aa0 를 찾을 수 있다. 즉, 위의 마션소스 로그는 Pod(coredns) 과 연결된 호스트의 네트워크 장치(lxc3c160d6c7aa0)에서 응답 패킷을 처리하는 동안 발생한 것이다.
+
+```bash
+# ip addr show
+...
+417: lxc3c160d6c7aa0@if416: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
+    link/ether 8a:95:96:c7:1f:85 brd ff:ff:ff:ff:ff:ff link-netns 36b7afe0-19f3-47cc-be7b-842bbfe9c960
+    inet6 fe80::8895:96ff:fec7:1f85/64 scope link
+       valid_lft forever preferred_lft forever
+```
+
+그렇다면 왜 호스트의 네트워크 장치(lxc3c160d6c7aa0)에서 해당 응답 패킷을 드롭한 것일까? 이는 처음 소개했던 RPFilter 의 동작 원리를 이용하면 간단히 확인할 수 있다. 아래와 같이 응답 패킷의 출발지 주소(10.0.0.113)를 목적지 주소로 하는 라우팅 정보(FIB)를 확인해보자.
+
+```bash
+# ip route get 10.0.0.113
+10.0.0.113 dev cilium_host src 10.0.0.253 uid 0
+    cache
 
 # ip addr show
-2: eno1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
-    link/ether a4:ae:12:2c:26:31 brd ff:ff:ff:ff:ff:ff
-    altname enp0s31f6
-    inet 172.26.50.200/24 brd 172.26.50.255 scope global eno1
-       valid_lft forever preferred_lft forever
-    inet6 fe80::a6ae:12ff:fe2c:2631/64 scope link
-       valid_lft forever preferred_lft forever
+...
 5: cilium_host@cilium_net: <BROADCAST,MULTICAST,NOARP,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
     link/ether 32:a7:e5:1c:b8:a5 brd ff:ff:ff:ff:ff:ff
     inet 10.0.0.253/32 scope link cilium_host
        valid_lft forever preferred_lft forever
     inet6 fe80::30a7:e5ff:fe1c:b8a5/64 scope link
        valid_lft forever preferred_lft forever
-...
-417: lxc3c160d6c7aa0@if416: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default qlen 1000
-    link/ether 8a:95:96:c7:1f:85 brd ff:ff:ff:ff:ff:ff link-netns 36b7afe0-19f3-47cc-be7b-842bbfe9c960
-    inet6 fe80::8895:96ff:fec7:1f85/64 scope link
-       valid_lft forever preferred_lft forever
+```
 
+위의 라우팅 정보를 보면 호스트에서 10.0.0.113 으로 패킷을 전송할 때는 10.0.0.253 을 출발지 주소로 이용하여 cilium_host 네트워크 장치로 보낸다는 것을 알 수 있다. 그리고 해당 라우팅 정보가 선택된 이유는 현재 라우팅 테이블이 아래와 같이 구성되어 있기 때문이다. 즉, 목적지 주소가 10.0.0.0/24 인 모든 패킷은 cilium_host 네트워크 장치로 전달된다.
+
+```bash
 # route -n
 Kernel IP routing table
 Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
@@ -74,17 +102,9 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
 10.0.1.0        172.26.50.201   255.255.255.0   UG    0      0        0 eno1
 172.17.0.0      0.0.0.0         255.255.0.0     U     0      0        0 docker0
 172.26.50.0     0.0.0.0         255.255.255.0   U     0      0        0 eno1
-
-# ip route get 10.0.0.113
-10.0.0.113 dev cilium_host src 10.0.0.253 uid 0
-    cache
-
-# journal -k -f
-...
-Dec 09 06:46:20 node0 kernel: IPv4: martian source 10.0.0.253 from 10.0.0.113, on dev lxc3c160d6c7aa0
-Dec 09 06:46:20 node0 kernel: ll header: 00000000: 8a 95 96 c7 1f 85 0a 50 d2 29 32 ba 08 00
-...
 ```
+
+여기까지 분석한 내용들을 정리해보면, 호스트에서 패킷을 보낼 때는 cilium_host 네트워크 장치를 사용했지만, 응답 패킷은 lxc3c160d6c7aa0 네트워크 장치에서 처리하기 때문에 RPFilter 에 의해 해당 응답 패킷이 드롭되는 것이다. 사실 패킷을 보내는 장치와 받는 장치가 다른 것은 Cilium 에서는 일반적인 동작 방식이기 때문에 Cilium 은 기본적으로 자신이 관리하는 모든 네트워크 장치에서 RPFilter 를 사용하지 않도록 설정해둔다. 그런데 왜 RPFilter 가 작동할 것일까?
 
 ## _어떻게 문제가 발생했는가???_
 

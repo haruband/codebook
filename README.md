@@ -1,15 +1,9 @@
-## 관심 분야
-
-- 쿠버네티스 네트워킹 최적화 (Cilium/eBPF)
-- 오브젝트 스토리지 최적화 (Minio)
-- DeltaLake 기반 LakeHouse 아키텍처 설계 및 개발
-
 ## 주요 경력
 
 ### 바텍 (2019/03 ~ )
 
 - 쿠버네티스 클러스터 구축
-  - Kubespray 를 이용한 쿠버네티스 클러스터 구축
+  - Kubeadm 을 이용한 쿠버네티스 클러스터 구축
   - Kustomization 기반 IaC(Infrastructure as Code) 구축
 - 쿠버네티스 클러스터 최적화
   - 네트워킹 최적화 (Cilium/eBPF, ...)

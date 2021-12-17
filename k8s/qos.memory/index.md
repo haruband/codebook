@@ -1,9 +1,17 @@
 쿠버네티스는 리눅스 커널이 제공하는 CGroupV2 기능을 이용하여 다양한 QoS 기능을 제공하고 있다.
 
+## _프로세스가 새로운 메모리를 요청할 때 무슨 일이 생기는가?_
+
 - 새로운 메모리를 할당받는다. (익명 페이지 or 페이지 캐시)
 - 현재 CGROUP 의 메모리 사용량을 확인한다.
 - 메모리 초과 사용시, 초과된 메모리를 모두 반환한다.
 - 메모리 반환 실패시, 해당 프로세스는 종료된다.
+
+## _누가/왜 프로세스를 강제로 종료시키는가?_
+
+- 커널은 프로세스가 속해있는 CGROUP 의 메모리 한도를 초과한 프로세스를 종료한다.
+- 커널은 전체 메모리 한도를 초과했을 때 우선순위를 계산해서 특정 프로세스 혹은 특정 CGROUP 을 종료한다.
+- 쿠버네티스는 설정해놓은 메모리 한도를 초과했을 때 우선순위를 계산해서 특정 Pod 을 종료한다.
 
 ## _메모리를 초과해서 사용하면 무슨 일이 생기는가?_
 
@@ -13,11 +21,10 @@
 
 ```bash
 # cat /sys/fs/cgroups/.../memory.stat
-anon 59322368
-file 1003139072
+anon=59322368 file=1003139072
 
 # cat /sys/fs/cgroups/.../io.stat
-8:0 rbytes=5329436672 wbytes=5749862400 rios=42989 wios=350636 dbytes=0 dios=0
+rbytes=5329436672 wbytes=5749862400 rios=42989 wios=350636 dbytes=0 dios=0
 
 $ md5sum file
 real    0m29.512s
@@ -25,22 +32,20 @@ user    0m11.805s
 sys     0m2.344s
 
 # cat /sys/fs/cgroups/.../memory.stat
-anon 59322368
-file 1003167744
+anon=59322368 file=1003167744
 
 # cat /sys/fs/cgroups/.../io.stat
-8:0 rbytes=9624522752 wbytes=5749862400 rios=59394 wios=350636 dbytes=0 dios=0
+rbytes=9624522752 wbytes=5749862400 rios=59394 wios=350636 dbytes=0 dios=0
 ```
 
 8G 메모리에서 4G 파일을 두 번째 읽을 때.
 
 ```bash
 # cat /sys/fs/cgroups/.../memory.stat
-anon 59346944
-file 4297256960
+anon=59346944 file=4297256960
 
 # cat /sys/fs/cgroups/.../io.stat
-8:0 rbytes=4326559744 wbytes=4294987776 rios=20574 wios=4135 dbytes=0 dios=0
+rbytes=4326559744 wbytes=4294987776 rios=20574 wios=4135 dbytes=0 dios=0
 
 $ md5sum file
 real    0m6.500s
@@ -48,11 +53,10 @@ user    0m5.949s
 sys     0m0.544s
 
 # cat /sys/fs/cgroups/.../memory.stat
-anon 59346944
-file 4297871360
+anon=59346944 file=4297871360
 
 # cat /sys/fs/cgroups/.../io.stat
-8:0 rbytes=4327174144 wbytes=4294987776 rios=20724 wios=4135 dbytes=0 dios=0
+rbytes=4327174144 wbytes=4294987776 rios=20724 wios=4135 dbytes=0 dios=0
 ```
 
 1G 메모리에서 4G 힙을 스왑없이 사용할 때.
@@ -71,15 +75,15 @@ Dec 17 01:54:19 node1 kernel: oom_reaper: reaped process 1158401 (stress-ng-vm),
 $ stress-ng --vm 1 --vm-bytes 4096M --vm-keep --vm-hang 0
 
 # cat /sys/fs/cgroups/.../io.stat
-8:0 rbytes=18944565248 wbytes=8100360192 rios=173696 wios=924488 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8375779328 rios=175064 wios=991729 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8481820672 rios=175064 wios=1017618 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8700641280 rios=175064 wios=1071041 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8781262848 rios=175064 wios=1090724 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8872636416 rios=175064 wios=1113032 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=8979091456 rios=175064 wios=1139022 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=9043832832 rios=175064 wios=1154828 dbytes=0 dios=0
-8:0 rbytes=18953256960 wbytes=9128165376 rios=175064 wios=1175417 dbytes=0 dios=0
+rbytes=18944565248 wbytes=8100360192 rios=173696 wios=924488 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8375779328 rios=175064 wios=991729 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8481820672 rios=175064 wios=1017618 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8700641280 rios=175064 wios=1071041 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8781262848 rios=175064 wios=1090724 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8872636416 rios=175064 wios=1113032 dbytes=0 dios=0
+rbytes=18953256960 wbytes=8979091456 rios=175064 wios=1139022 dbytes=0 dios=0
+rbytes=18953256960 wbytes=9043832832 rios=175064 wios=1154828 dbytes=0 dios=0
+rbytes=18953256960 wbytes=9128165376 rios=175064 wios=1175417 dbytes=0 dios=0
 ```
 
 ## _페이지 캐시는 누구의 소유인가?_

@@ -84,7 +84,7 @@ Policy verdict log: flow 0x48357586 local EP ID 211, remote ID world, proto 6, i
 xx drop (Policy denied) flow 0x48357586 to endpoint 211, , identity world->15435: 172.26.50.201:60556 -> 10.0.1.185:8082 tcp SYN
 ```
 
-위에서 볼 수 있는 것처럼 호스트에서 Pod 으로 보내는 패킷이 Cilium 에 의해 드롭되고 있었다. 이유는 패킷을 보내는 곳의 ID 가 World 로 되어있기 때문이다. (World 는 클러스터 외부를 의미하고, ID 는 2 이다.) 분명히 호스트(Host)에서 패킷을 보냈는데 왜 클러스터 외부(World)에서 보낸 것으로 인식하는 것일까? 그리고 왜 두 개의 Pod 만 동작하지 않고 나머지 Pod 은 동작하는 것일까?
+위에서 볼 수 있는 것처럼 호스트에서 Pod 으로 보낸 패킷이 Cilium 에 의해 드롭되고 있었다. 이유는 해당 패킷의 ID 가 World 로 되어있기 때문이다. (World 는 클러스터 외부를 의미하고, ID 는 2 이다.) 분명히 호스트(Host)에서 패킷을 보냈는데 왜 클러스터 외부(World)에서 보낸 것으로 인식하는 것일까? 그리고 왜 두 개의 Pod 만 동작하지 않고 나머지 Pod 은 동작하는 것일까?
 
 우선 두 번째 의문점을 해결하기 위해 동작 중인 Pod 이 사용 중인 네트워크 정책을 살펴보자.
 

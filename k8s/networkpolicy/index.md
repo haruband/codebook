@@ -14,7 +14,7 @@ argocd-repo-server-784b48858f-4zx42   0/1     CrashLoopBackOff   27 (87s ago)   
 argocd-server-74bf76596b-zgtgq        1/1     Running            0              88m   10.0.1.184   node1   <none>           <none>
 ```
 
-아래와 같이 동작 확인(readiness/liveness)이 제대로 되지 않고 있는 문제였고, 호스트에서 확인해보니 Pod 으로 네트워크 연결이 되지 않았다.
+아래와 같이 동작 확인(readiness/liveness)이 제대로 되지 않는 문제였고, 직접 호스트에서 확인해보니 Pod 으로 네트워크 연결이 되지 않았다.
 
 ```bash
 # kubectl describe pods argocd-application-controller-0 -n argocd
@@ -29,7 +29,9 @@ Events:
   Warning  BackOff    2m (x302 over 77m)  kubelet  Back-off restarting failed container
 ```
 
-현재 우리는 CNI 로 Cilium 을 사용 중이고, 아래와 같이 라우팅 정보에는 문제가 없었다. 엔드포인트 라우팅을 사용 중이기 때문에 VETH 마다 라우팅 정보가 설정되어 있다.
+나머지 Pod 은 모두 잘 동작하는데 왜 두 개의 Pod 만 네트워크 연결이 안 되는 것일까?
+
+아래와 같이 라우팅 정보에는 문제가 없었다. Cilium 이 제공하는 엔드포인트 라우팅을 사용 중이기 때문에 VETH 마다 라우팅 정보가 설정되어 있다.
 
 ```bash
 # route -n
@@ -46,7 +48,7 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
     cache
 ```
 
-그럼 이제 네트워크 정책(NetworkPolicy)을 살펴보도록 하자. 아래는 ArgoCD 가 문제가 발생한 Pod 을 위해 제공하는 네트워크 정책(NetworkPolicy)과 Cilium 이 해당 정책을 eBPF 를 이용하여 적용한 내용이다.
+다음으로 네트워크 정책(NetworkPolicy)을 살펴보도록 하자. 아래는 ArgoCD 가 문제가 발생한 Pod 을 위해 제공하는 네트워크 정책(NetworkPolicy)과 Cilium 이 해당 정책을 eBPF 를 이용하여 적용한 내용이다.
 
 ```bash
 # kubectl describe networkpolicy argocd-application-controller-network-policy -n argocd
@@ -74,9 +76,9 @@ Allow    Ingress     60530      8082/TCP     NONE         0        0
 Allow    Egress      0          ANY          NONE         446824   3633
 ```
 
-해당 네트워크 정책은 8082/TCP 포트로만 접근을 허용하고 있고, Cilium 이 적용한 정책 테이블의 ID(Identity) 값을 보면 모든 Pod 과 Host 에서만 접근을 허용하고 있다.
+해당 네트워크 정책은 8082/TCP 포트로만 접근을 허용하고 있고, Cilium 이 적용한 정책 테이블의 ID(Identity) 값을 보면 모든 Pod 과 Host 에서만 접근을 허용하고 있다. (Host 의 ID 가 1 이다.)
 
-아직까지 설정에는 별 문제가 없어보여서 Cilium 이 제공하는 모니터링 기능을 이용하여 확인해보았다.
+기본적인 설정에는 별 문제가 없어보이니 Cilium 이 제공하는 모니터링 기능을 이용하여 확인해보자.
 
 ```bash
 # cilium node1 cilium monitor
@@ -84,9 +86,9 @@ Policy verdict log: flow 0x48357586 local EP ID 211, remote ID world, proto 6, i
 xx drop (Policy denied) flow 0x48357586 to endpoint 211, , identity world->15435: 172.26.50.201:60556 -> 10.0.1.185:8082 tcp SYN
 ```
 
-위에서 볼 수 있는 것처럼 호스트에서 Pod 으로 보내는 패킷이 드롭되고 있었다. 이유는 패킷을 보내는 곳의 ID 가 World 로 되어있기 때문이다. (World 는 클러스터 외부를 의미한다.) 분명히 호스트(Host)에서 패킷을 보냈는데 왜 World 에서 보낸 것으로 인식하는 것일까? 그리고 왜 두 개의 Pod 만 동작하지 않고 나머지 Pod 은 동작하는 것일까?
+위에서 볼 수 있는 것처럼 호스트에서 Pod 으로 보내는 패킷이 Cilium 에 의해 드롭되고 있었다. 이유는 패킷을 보내는 곳의 ID 가 World 로 되어있기 때문이다. (World 는 클러스터 외부를 의미하고, ID 는 2 이다.) 분명히 호스트(Host)에서 패킷을 보냈는데 왜 클러스터 외부(World)에서 보낸 것으로 인식하는 것일까? 그리고 왜 두 개의 Pod 만 동작하지 않고 나머지 Pod 은 동작하는 것일까?
 
-우선 두 번째 의문점을 해결하기 위해 간단히 동작 중인 Pod 이 사용 중인 네트워크 정책을 살펴보자.
+우선 두 번째 의문점을 해결하기 위해 동작 중인 Pod 이 사용 중인 네트워크 정책을 살펴보자.
 
 ```bash
 # kubectl describe networkpolicy argocd-server-network-policy -n argocd
@@ -108,7 +110,7 @@ Allow    Ingress     1          ANY          NONE         71946     649
 Allow    Egress      0          ANY          NONE         1581964   11146
 ```
 
-위에서 볼 수 있는 것처럼 동작 중인 Pod 은 네트워크 정책이 비어있기 때문에 모든 접속을 허용하고 있다. 그래서 아래와 같이 호스트에서 보낸 패킷의 ID 가 World 로 인식되어도 문제없이 동작하는 것이다.
+위에서 볼 수 있는 것처럼 동작 중인 Pod 은 네트워크 정책이 비어있기 때문에 모든 접속을 허용하고 있다. (Cilium 은 모든 접속을 허용하기 위해 ID 가 0 인 항목을 추가하였다.) 그래서 아래와 같이 호스트에서 보낸 패킷의 ID 가 World 로 인식되어도 문제없이 동작하는 것이다.
 
 ```bash
 # cilium node1 cilium monitor
@@ -124,7 +126,7 @@ Cilium 은 0xc00 이 마킹되어 있는 패킷을 호스트에서 보낸 패킷
 
 ## _어떻게 문제를 해결했는가???_
 
-해결책은 간단하다. 필요한 설정(--install-iptables-rules)을 추가하기만 하면 된다. 해당 설정을 추가하고 IPTables 에 추가된 정책을 살펴보면 아래와 같다.
+해결책은 간단하다. 필요한 설정(--install-iptables-rules)을 추가하면 된다. 해당 설정을 추가하고 IPTables 에 추가된 정책을 살펴보자.
 
 ```bash
 # iptables -t filter -L

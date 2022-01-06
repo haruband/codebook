@@ -1,4 +1,4 @@
-오늘은 최근 회사에서 GitOps 를 적용하기 위해 ArgoCD 를 설치하던 중 발생했던 문제에 대해 살펴보고자 한다.
+오늘은 최근 회사에서 GitOps 를 적용하기 위해 ArgoCD 를 설치하던 중 발생했던 네트워크 정책(NetworkPolicy) 관련된 문제에 대해 살펴보고자 한다.
 
 ## _어떠한 문제가 발생했는가???_
 
@@ -31,7 +31,7 @@ Events:
 
 나머지 Pod 은 모두 잘 동작하는데 왜 두 개의 Pod 만 네트워크 연결이 안 되는 것일까?
 
-아래와 같이 라우팅 정보에는 문제가 없었다. Cilium 이 제공하는 엔드포인트 라우팅을 사용 중이기 때문에 VETH 마다 라우팅 정보가 설정되어 있다.
+우선 라우팅 정책을 살펴보도록 하자. 아래와 같이 라우팅 정책에는 문제가 없었다. Cilium 이 제공하는 엔드포인트 라우팅을 사용 중이기 때문에 VETH 마다 라우팅 정책이 설정되어 있다.
 
 ```bash
 # route -n
@@ -48,7 +48,7 @@ Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
     cache
 ```
 
-다음으로 네트워크 정책(NetworkPolicy)을 살펴보도록 하자. 아래는 ArgoCD 가 문제가 발생한 Pod 을 위해 제공하는 네트워크 정책(NetworkPolicy)과 Cilium 이 해당 정책을 eBPF 를 이용하여 적용한 내용이다.
+다음으로 네트워크 정책을 살펴보도록 하자. 아래는 ArgoCD 에서 문제가 발생한 Pod 을 위해 제공하는 네트워크 정책과 Cilium 이 해당 정책을 eBPF 를 이용하여 적용한 내용이다. 해당 네트워크 정책은 8082/TCP 포트로만 접근을 허용하고 있고, Cilium 이 적용한 정책 테이블의 ID(Identity) 값을 보면 모든 Pod 과 Host 에서만 접근을 허용하고 있다. (Host 의 ID 가 1 이다.)
 
 ```bash
 # kubectl describe networkpolicy argocd-application-controller-network-policy -n argocd
@@ -75,8 +75,6 @@ Allow    Ingress     19965      8082/TCP     NONE         0        0
 Allow    Ingress     60530      8082/TCP     NONE         0        0
 Allow    Egress      0          ANY          NONE         446824   3633
 ```
-
-해당 네트워크 정책은 8082/TCP 포트로만 접근을 허용하고 있고, Cilium 이 적용한 정책 테이블의 ID(Identity) 값을 보면 모든 Pod 과 Host 에서만 접근을 허용하고 있다. (Host 의 ID 가 1 이다.)
 
 기본적인 설정에는 별 문제가 없어보이니 Cilium 이 제공하는 모니터링 기능을 이용하여 확인해보자.
 

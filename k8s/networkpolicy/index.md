@@ -116,4 +116,29 @@ Spec:
 
 ## _어떻게 문제가 발생했는가???_
 
+Cilium 에서는 호스트에서 보내는 패킷이 0xc00 을 마킹하는데, 이를 iptables 를 이용한다. 그런데 --install-iptables-rules 설정이 해제되어 있어서 제대로 마킹이 되지 않았던 것이다.
+
 ## _어떻게 문제를 해결했는가???_
+
+--install-iptables-rules 를 설정하면 아래와 같은 정책을 볼 수 있다.
+
+```bash
+# iptables -t filter -L
+Chain OUTPUT (policy ACCEPT)
+target     prot opt source               destination
+CILIUM_OUTPUT  all  --  anywhere             anywhere             /* cilium-feeder: CILIUM_OUTPUT */
+KUBE-FIREWALL  all  --  anywhere             anywhere
+
+Chain CILIUM_OUTPUT (1 references)
+target     prot opt source               destination
+ACCEPT     all  --  anywhere             anywhere             mark match 0xa00/0xfffffeff /* cilium: ACCEPT for proxy return traffic */
+MARK       all  --  anywhere             anywhere             mark match ! 0xe00/0xf00 mark match ! 0xd00/0xf00 mark match ! 0xa00/0xe00 /* cilium: host->any mark as from host */ MARK xset 0xc00/0xf00
+```
+
+호스트에서 보내는 패킷에 0xc00 이 마킹되고 Cilium 은 0xc00 이 마킹된 패킷의 ID 는 Host 로 인식한다.
+
+```bash
+# cilium node1 cilium monitor
+-> endpoint 1999 flow 0x6cac68b2 , identity host->15435 state established ifindex 0 orig-ip 172.26.50.201: 172.26.50.201:43164 -> 10.0.1.185:8082 tcp ACK
+-> stack flow 0x9628293d , identity 15435->host state reply ifindex 0 orig-ip 0.0.0.0: 10.0.1.185:8082 -> 172.26.50.201:43164 tcp ACK
+```

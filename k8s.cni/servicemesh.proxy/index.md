@@ -79,36 +79,22 @@ spec:
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     name: default/productpage
-    outlierDetection:
-      consecutiveLocalOriginFailure: 2
-      splitExternalLocalOriginErrors: true
     type: EDS
-    typedExtensionProtocolOptions:
-      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
-        '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
-        useDownstreamProtocolConfig:
-          http2ProtocolOptions: {}
+    ...
   - '@type': type.googleapis.com/envoy.config.cluster.v3.Cluster
     connectTimeout: 5s
     name: default/details
-    outlierDetection:
-      consecutiveLocalOriginFailure: 2
-      splitExternalLocalOriginErrors: true
     type: EDS
-    typedExtensionProtocolOptions:
-      envoy.extensions.upstreams.http.v3.HttpProtocolOptions:
-        '@type': type.googleapis.com/envoy.extensions.upstreams.http.v3.HttpProtocolOptions
-        useDownstreamProtocolConfig:
-          http2ProtocolOptions: {}
+    ...
   services:
   - listener: cilium-ingress-default-basic-ingress
     name: cilium-ingress-basic-ingress
     namespace: default
 ```
 
-엔보이에 대한 자세한 설명은 본문 내용과는 어울리지 않으니 관련 자료를 참고하시고 여기서는 간단히만 소개하도록 하겠다. 엔보이는 리스너(Listener)를 통해 트래픽을 전달받아서 필요한 처리를 한 다음, 클러스터(Cluster)로 트래픽을 전달한다. 위의 인그레스 예제는 리스너로 들어온 HTTP 요청의 URL 을 확인하여 /details 는 default 네임스페이스의 details 서비스로 전달하고, 나머지는 모두 default 네임스페이스의 productpage 서비스로 전달하라는 의미이다.
+엔보이에 대한 자세한 설명은 본문 내용과는 어울리지 않으니 관련 자료를 참고하시고 여기서는 오늘 설명할 내용을 이해하기 위해 꼭 필요한 내용만 간단히 소개하도록 하겠다. 엔보이는 리스너(Listener)를 통해 트래픽을 전달받아서 필요한 처리를 한 다음, 클러스터(Cluster)로 트래픽을 전달한다. 위의 인그레스 예제는 리스너로 들어온 HTTP 요청의 URL 을 확인하여 /details 는 default 네임스페이스의 details 서비스로 전달하고, 나머지는 모두 default 네임스페이스의 productpage 서비스로 전달하라는 의미이다. (두 개의 클러스터(default/details, default/productpage)가 EDS 타입으로 설정되어있고, Cilium 에이전트가 해당 클러스터의 엔드포인트 정보를 자동으로 업데이트한다.)
 
-그래서 Pod 에서 나가는 트래픽을 엔보이의 리스너로 전달하는 것이 중요한데, 이를 위해 Cilium 은 IPTables 를 이용하는 방식과 eBPF 를 이용하는 방식을 제공하고 있다.
+엔보이에서 가장 중요한 것 중의 하나는 필요한 트래픽을 리스너로 전달하는 것인데, 기존의 사이드카 방식의 프록시는 IPTables 를 이용하여 모든 트래픽을 무조건 엔보이의 특정 리스너로 전달하는 방식을 사용하지만, Cilium 의 노드별 프록시는 특정 서비스(cilium-ingress-basic-ingress)로 들어오는 트래픽을 특정 리스너(cilium-ingress-default-basic-ingress)로 전달하는 방식을 사용하고 있다. 지금부터 Cilium 이 어떤 방식으로 서비스의 트래픽을 리스너로 전달하는지 살펴보도록 하자.
 
 ## _IPTables 기반 트래픽 전달_
 

@@ -98,6 +98,26 @@ spec:
 
 기존의 사이드카 방식의 프록시는 IPTables 를 이용하여 모든 트래픽을 엔보이의 특정 리스너로 전달하는 방식을 사용하지만, Cilium 의 노드별 프록시는 특정 서비스(cilium-ingress-basic-ingress)로 들어오는 트래픽을 특정 리스너(cilium-ingress-default-basic-ingress)로 전달하는 방식을 사용하고 있다. Cilium 에이전트는 엔보이에 리스너를 등록하기 전에 임의의 포트를 할당하고, 리스너와 연결된 서비스에 해당 포트를 설정해둔다. 이후에는 해당 서비스로 들어오는 모든 트래픽은 리스너가 할당받은 포트로 전달된다.
 
+위의 인그레스 예제를 좀 더 살펴보면, 아래와 같이 리스너와 연결된 서비스를 확인할 수 있고, 해당 서비스로 접속하면 위에서 설정한대로 default 네임스페이스의 details 서비스와 productpage 서비스로 연결되는 것을 확인할 수 있다.
+
+```bash
+# kubectl get services
+NAME                           TYPE           CLUSTER-IP       EXTERNAL-IP   PORT(S)        AGE
+cilium-ingress-basic-ingress   LoadBalancer   10.103.218.167   <pending>     80:31907/TCP   23h
+...
+
+# curl http://172.26.50.200:31907/details/1
+{"id":1,"author":"William Shakespeare","year":1595,"type":"paperback","pages":200,"publisher":"PublisherA","language":"English","ISBN-10":"1234567890","ISBN-13":"123-1234567890"}
+
+# curl http://172.26.50.200:31907/
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Simple Bookstore App</title>
+    ...
+</html>
+```
+
 Cilium 은 서비스로 들어온 트래픽을 리스너로 전달하기 위해 두 가지 방식을 제공하고 있다. 첫 번째는 IPTables 를 이용하는 방식이고, 두 번째는 eBPF 를 이용하는 방식이다. 지금부터 이 두 가지 방식이 각각 어떻게 동작하는지 하나씩 살펴보도록 하자.
 
 ## _IPTables 기반 트래픽 전달_

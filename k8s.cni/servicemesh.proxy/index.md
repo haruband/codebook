@@ -122,4 +122,28 @@ Cilium 은 서비스로 들어온 트래픽을 리스너로 전달하기 위해 
 
 ## _IPTables 기반 트래픽 전달_
 
+Cilium 은 리스너와 연결된 서비스로 들어온 모든 패킷에 매직 코드(0x200)와 리스너의 포트를 마킹한다. 아래는 위의 인그레스 예제에서 사용 중인 엔보이의 열린파일 목록이다. 이를 통해 우리는 리스너가 할당받은 포트가 18243 번인 것과 Cilium 이 해당 서비스로 들어온 모든 패킷에 18243 을 상위 16 비트로, 0x200 을 하위 16 비트로 하는 0x43470200 을 마킹하는 것을 알 수 있다.
+
+```bash
+# lsof -p $(pidof cilium-envoy)
+COMMAND    PID USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
+...
+cilium-en 7024 root  105u     IPv4              50630      0t0      TCP *:18243 (LISTEN)
+```
+
+Cilium 은 아래와 같이 IPTables 가 제공하는 TPROXY 를 이용하여 다른 목적지 주소를 가지는 패킷을 리스너로 전달한다.
+
+```bash
+# iptables -t mangle -L
+Chain PREROUTING (policy ACCEPT)
+target     prot opt source               destination
+CILIUM_PRE_mangle  all  --  anywhere             anywhere             /* cilium-feeder: CILIUM_PRE_mangle */
+
+Chain CILIUM_PRE_mangle (1 references)
+target     prot opt source               destination
+MARK       all  --  anywhere             anywhere             socket --transparent /* cilium: any->pod redirect proxied traffic to host proxy */ MARK set 0x200
+TPROXY     tcp  --  anywhere             anywhere             mark match 0x43470200 /* cilium: TPROXY to host cilium-ingress-default-basic-ingress proxy */ TPROXY redirect 0.0.0.0:18243 mark 0x200/0xffffffff
+...
+```
+
 ## _eBPF 기반 트래픽 전달_

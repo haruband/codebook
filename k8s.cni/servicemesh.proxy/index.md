@@ -131,7 +131,7 @@ COMMAND    PID USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
 cilium-en 7024 root  105u     IPv4              50630      0t0      TCP *:18243 (LISTEN)
 ```
 
-Cilium 은 다른 목적지 주소를 가지는 패킷을 엔보이로 전달하기 위해 아래와 같이 IPTables 가 제공하는 TPROXY 를 사용한다. 아래 CILIUM_PRE_mangle 체인을 보면 0x43470200 이 마킹된 패킷을 18243 포트로 전달하는 설정을 볼 수 있다.
+Cilium 은 다른 목적지 주소를 가지는 패킷을 엔보이로 전달하기 위해 아래와 같이 IPTables 가 제공하는 TPROXY 를 사용한다. 아래 CILIUM_PRE_mangle 체인을 보면 0x43470200 이 마킹된 패킷을 18243 포트로 전달하는 룰을 볼 수 있다.
 
 ```bash
 # iptables -t mangle -L
@@ -146,7 +146,7 @@ TPROXY     tcp  --  anywhere             anywhere             mark match 0x43470
 ...
 ```
 
-그래서 외부에서 해당 서비스에 접속해보면, 아래와 같이 엔보이에 연결이 추가되어있는걸 확인할 수 있다.
+외부에서 해당 서비스에 접속해보면, 아래와 같이 엔보이에 연결이 추가되어있는걸 확인할 수 있다.
 
 ```bash
 # lsof -p $(pidof cilium-envoy)
@@ -157,3 +157,15 @@ cilium-en 7024 root  107u     IPv4            1185132      0t0      TCP 10.0.0.9
 ```
 
 ## _eBPF 기반 트래픽 전달_
+
+Cilium 은 리스너와 연결된 서비스로 들어온 모든 패킷을 리스너가 할당받은 포트로 바로 전달한다. BPF 코드에서 바로 해당 포트와 연결된 소켓을 패킷에 바로 연결해버리기 때문에 굉장히 간단하다.
+
+외부에서 해당 서비스에 접속해보면, IPTables 의 TPROXY 없이도 목적지 주소가 다른 패킷이 엔보이로 잘 전달되는 것을 볼 수 있다.
+
+```bash
+# lsof -p $(pidof cilium-envoy)
+COMMAND    PID USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
+...
+cilium-en 6823 root  105u     IPv4              50730      0t0      TCP *:13352 (LISTEN)
+cilium-en 6823 root  107u     IPv4              73061      0t0      TCP 10.0.0.62:35128->10.0.1.224:9080 (ESTABLISHED)
+```

@@ -146,4 +146,14 @@ TPROXY     tcp  --  anywhere             anywhere             mark match 0x43470
 ...
 ```
 
+그래서 외부에서 해당 서비스에 접속해보면, 아래와 같이 엔보이에 연결이 추가되어있는걸 확인할 수 있다.
+
+```bash
+# lsof -p $(pidof cilium-envoy)
+COMMAND    PID USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
+...
+cilium-en 7024 root  105u     IPv4              50630      0t0      TCP *:18243 (LISTEN)
+cilium-en 7024 root  107u     IPv4            1185132      0t0      TCP 10.0.0.9:40494->10.0.1.174:9080 (ESTABLISHED)
+```
+
 ## _eBPF 기반 트래픽 전달_

@@ -131,7 +131,7 @@ COMMAND    PID USER   FD      TYPE             DEVICE SIZE/OFF     NODE NAME
 cilium-en 7024 root  105u     IPv4              50630      0t0      TCP *:18243 (LISTEN)
 ```
 
-Cilium 은 아래와 같이 IPTables 가 제공하는 TPROXY 를 이용하여 다른 목적지 주소를 가지는 패킷을 리스너로 전달한다.
+Cilium 은 다른 목적지 주소를 가지는 패킷을 엔보이로 전달하기 위해 아래와 같이 IPTables 가 제공하는 TPROXY 를 사용한다. 아래 CILIUM_PRE_mangle 체인을 보면 0x43470200 이 마킹된 패킷을 18243 포트로 전달하는 설정을 볼 수 있다.
 
 ```bash
 # iptables -t mangle -L

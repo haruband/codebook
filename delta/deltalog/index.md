@@ -3,17 +3,13 @@
 레이크하우스를 한 마디로 표현하면 ACID(Atomic, Isolated, Consistent, Durable)를 지원하는 데이터레이크라고 볼 수 있다. 즉, 데이터레이크에서 주로 사용하는 저렴한 스토리지를 이용하여 데이터웨어하우스만의 장점인 ACID 를 지원하는 것이 핵심이다. 그럼 어떻게 일반적인 스토리지 위에서 안정적인 트랜잭션을 지원할 수 있는 것일까? 그 해답이 바로 델타로그이다.
 
 델타레이크는 한 번의 쓰기 작업에서 반드시 하나의 로그 파일을 생성한다. 파티셔닝이나 파일당 크기 제한 등으로 인해 여러 개의 데이터 파일이 생성되더라도 해당 쓰기 작업의 모든 행위(Action)는 하나의 로그 파일에 모두 기록된다. 간단한 예제를 통해 조금 더 자세히 살펴보자.
-(두 개 이상의 쓰기 작업에서 동시에 로그 파일을 생성하려고 할 때도, 스토리지에서 PutIfAbsent 기능만 제공한다면 문제없이 처리 가능하다.)
+(두 개 이상의 쓰기 작업에서 동시에 로그 파일을 생성하려고 할 때는, 스토리지에서 PutIfAbsent 기능만 제공한다면 문제없이 처리 가능하다.)
 
 아래는 스파크로 개발한 간단한 예제 프로그램을 실행한 결과이다. 보이는 것처럼 한 번의 쓰기 작업에 총 6 개의 데이터 파일과 1 개의 로그 파일이 생성되었다. (델타레이크는 모든 로그 파일을 \_delta_log 폴더 아래에 생성한다.)
 
 ```bash
 _delta_log:
 00000000000000000000.json
-
-year=2000:
-gender=female
-gender=male
 
 year=2000/gender=female:
 part-00006-26150ffe-fdf8-4c02-9d85-01b90ee89a1f.c000.snappy.parquet
@@ -23,9 +19,6 @@ year=2000/gender=male:
 part-00001-cbe08f85-1931-41ad-b717-801b41be7365.c000.snappy.parquet
 part-00003-56fab23c-5a87-4ed7-8834-b96d866d9e9f.c000.snappy.parquet
 part-00004-a0465a5a-6592-4dde-a8c3-8716462d8d90.c000.snappy.parquet
-
-year=2020:
-gender=female
 
 year=2020/gender=female:
 part-00009-1d1c1c04-838f-407e-b722-6a46d4a8c992.c000.snappy.parquet

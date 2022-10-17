@@ -21,7 +21,7 @@
 ```python
 .config(
     "spark.databricks.delta.properties.defaults.deletedFileRetentionDuration",
-    "interval 0 days",
+    "interval 15 days",
 )
 ```
 

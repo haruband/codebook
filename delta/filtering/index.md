@@ -1,1 +1,9 @@
-Partition Pruning, Predicate Pushdown, Projection Pruning
+## Partition Pruning
+
+## Predicate Pushdown
+
+### DeltaLog
+
+### Parquet
+
+## Projection Pruning

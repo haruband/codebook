@@ -22,10 +22,8 @@ df = df
 각각의 데이터 파일에 대한 파티션 정보는 아래와 같이 파일추가(add) 로그에 저장되어 있다. partitionValues 필드에 각각의 파티션 정보를 가지고 있는데, 아래 로그 파일에서 첫 번째 데이터 파일의 year 필드는 "2000" 이고 gender 필드는 "male" 인 것을 볼 수 있다. 그래서 데이터 파일 경로(path)는 "year=2000/gender=male/.." 이다.
 
 ```json
-...
-{"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}, ...}
-{"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}, ...}
-...
+{"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}}
+{"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}}
 ```
 
 델타레이크는 내부적으로 필요한 로그 정보를 스파크의 데이터프레임으로 관리하고 있고, 위의 파일추가(add) 로그만을 모은 데이터프레임에서 partitionValues 필드를 필터링하는 방식으로 동작하기 때문에 파일의 수가 많아도 빠르게 병렬 처리가 가능하다.
@@ -43,8 +41,8 @@ df = df
 우선 델타로그부터 살펴보자. 아래 파일추가 로그에서 통계 정보인 stats 필드를 보면 각 필드의 최대값(maxValues)과 최소값(minValues)을 알 수 있기 때문에, 파티션 프루닝과 마찬가지로 파일추가 로그만을 모은 데이터프레임에서 stats 필드를 필터링하는 방식으로 빠르게 조건에 맞는 파일들을 찾을 수 있다.
 
 ```json
-{"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
-{"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
+{"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}"}}
+{"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}"}}
 ```
 
 아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. 예제의 조건문 중에서 파티션 필드를 제외한 salary 필드만 추가되어있다.

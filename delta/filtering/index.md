@@ -33,6 +33,6 @@
 {"add":{"path":"year=2000/gender=male/part-00004-73109c31-e7e3-4674-8e8e-24c2bed9da35.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
 ```
 
-### Parquet
+그리고 스파크가 이미 파케이 파일에 대한 푸시다운 필터링 기능을 제공하고 있기 때문에 이를 활용하면, 데이터 파일 전체가 아닌 필요한 행 그룹만을 빠르게 가져올 수 있다.
 
 ## Projection Pruning

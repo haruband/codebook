@@ -26,7 +26,7 @@ part-00009-1d1c1c04-838f-407e-b722-6a46d4a8c992.c000.snappy.parquet
 
 아래는 위의 로그 파일의 내용이다. 다른 내용은 생략하고, 총 6 개의 데이터 파일이 추가(add)되었다는 내용만 남겨두었다.
 
-```bash
+```json
 ...
 {"add":{"path":"year=2000/gender=male/part-00001-cbe08f85-1931-41ad-b717-801b41be7365.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"},"size":1221,"modificationTime":1665794476795,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}"}}
 {"add":{"path":"year=2000/gender=male/part-00003-56fab23c-5a87-4ed7-8834-b96d866d9e9f.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"},"size":1228,"modificationTime":1665794476795,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}"}}
@@ -39,7 +39,7 @@ part-00009-1d1c1c04-838f-407e-b722-6a46d4a8c992.c000.snappy.parquet
 
 그리고 기존 데이터를 삭제하거나 변경하면 어떻게 될까? 이것 또한 간단하다. 아래는 기존 데이터를 변경했을 때 추가로 생성된 로그 파일의 내용이다.
 
-```bash
+```json
 ...
 {"remove":{"path":"year=2000/gender=male/part-00001-cbe08f85-1931-41ad-b717-801b41be7365.c000.snappy.parquet","deletionTimestamp":1665795385572,"dataChange":true,"extendedFileMetadata":true,"partitionValues":{"year":"2000","gender":"male"},"size":1221}}
 {"add":{"path":"year=2000/gender=male/part-00001-53b311c3-d70e-495e-9868-82b4fc8c1ed9.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"},"size":1221,"modificationTime":1665795383719,"dataChange":true,"stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}"}}

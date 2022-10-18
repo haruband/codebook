@@ -13,13 +13,13 @@ df = df
 
 ## Partition Pruning
 
-델타레이크는 사용 중인 파티션 필드에 대한 정보를 메타데이타(metadata) 로그에 담고 있다. 아래 예제를 보면 두 개의 파티션 필드(year, gender)를 사용하고 있는 것을 알 수 있다.
+델타레이크는 사용 중인 파티션 필드에 대한 정보를 메타데이타(metadata) 로그에 담고 있다. 아래 로그 파일을 보면 두 개의 파티션 필드(year, gender)를 사용하고 있는 것을 알 수 있다.
 
 ```json
-{"metaData":{..., "partitionColumns":["year","gender"], ...}}
+{"metaData": {"partitionColumns": ["year", "gender"]}}
 ```
 
-각각의 데이터 파일에 대한 파티션 정보는 아래와 같이 파일추가(add) 로그에 저장되어 있다. partitionValues 필드에 각각의 파티션 정보를 가지고 있는데, 아래 로그 파일에서 첫 번째 데이터 파일의 year 필드는 "2000" 이고 gender 필드는 "male" 인 것을 볼 수 있다.
+각각의 데이터 파일에 대한 파티션 정보는 아래와 같이 파일추가(add) 로그에 저장되어 있다. partitionValues 필드에 각각의 파티션 정보를 가지고 있는데, 아래 로그 파일에서 첫 번째 데이터 파일의 year 필드는 "2000" 이고 gender 필드는 "male" 인 것을 볼 수 있다. 그래서 데이터 파일 경로(path)는 "year=2000/gender=male/.." 이다.
 
 ```json
 ...
@@ -40,7 +40,7 @@ df = df
 
 델타레이크에서 조건절 푸시다운(Predicate Pushdown)은 크게 두 단계로 동작한다. 첫 번째 단계는 델타로그의 파일추가 로그에 있는 통계 정보를 이용하여 데이터 파일을 필터링하는 것이고, 두 번째 단계는 파케이가 제공하는 푸시다운 기능을 이용하여 행 그룹을 필터링하는 것이다.
 
-우선 델타로그부터 살펴보자. 아래 파일추가 로그에서 통계 정보인 stats 필드를 보면 각 필드의 최대값(maxValues)과 최소값(minValues)을 알 수 있기 때문에, 파티션 프루닝과 마찬가지로 파일추가 로그만을 모은 데이터프레임에서 stats 필드를 필터링하는 방식으로 빠르게 필요한 파일들만을 가져올 수 있다.
+우선 델타로그부터 살펴보자. 아래 파일추가 로그에서 통계 정보인 stats 필드를 보면 각 필드의 최대값(maxValues)과 최소값(minValues)을 알 수 있기 때문에, 파티션 프루닝과 마찬가지로 파일추가 로그만을 모은 데이터프레임에서 stats 필드를 필터링하는 방식으로 빠르게 조건에 맞는 파일들을 찾을 수 있다.
 
 ```json
 {"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
@@ -61,7 +61,7 @@ df = df
 
 ## Projection Pruning
 
-파케이 파일에서 특정 필드만 읽는 기능도 스파크가 이미 제공하고 있기 때문에 이를 활용하면 불필요한 필드를 가져오는 비용을 줄일 수 있다. 아래는 예제의 물리적 실행 계획에서 프로젝션 프루닝이 적용된 모습이다. 파티션 필드는 파케이 파일에 포함되어 있지 않기 때문에 파티션 필드를 제외한 salary 필드만 추가되어있다.
+파케이 파일에서 특정 필드만 읽는 기능도 스파크가 이미 제공하고 있기 때문에 이를 활용하면 불필요한 필드를 가져오는 비용을 줄일 수 있다. 아래는 예제의 물리적 실행 계획에서 프로젝션 프루닝이 적용된 모습이다. 예제의 선택문(select) 중에서 파티션 필드는 파케이 파일에 포함되어 있지 않기 때문에 파티션 필드를 제외한 salary 필드만 추가되어있다.
 
 ```
 +- FileScan parquet ReadSchema: struct<salary:bigint>, ...

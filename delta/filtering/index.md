@@ -19,7 +19,7 @@ df = df
 {"metaData":{..., "partitionColumns":["year","gender"], ...}}
 ```
 
-각각의 데이터 파일에 대한 파티션 정보는 아래와 같이 파일 추가(add) 로그에 저장하고 있다. partitionValues 필드에 각각의 파티션 정보를 가지고 있는데, 아래 로그 파일에서 첫 번째 데이터 파일의 year 필드는 "2000" 이고 gender 필드는 "male" 이다.
+각각의 데이터 파일에 대한 파티션 정보는 아래와 같이 파일추가(add) 로그에 저장하고 있다. partitionValues 필드에 각각의 파티션 정보를 가지고 있는데, 아래 로그 파일에서 첫 번째 데이터 파일의 year 필드는 "2000" 이고 gender 필드는 "male" 이다.
 
 ```json
 ...
@@ -29,9 +29,9 @@ df = df
 ...
 ```
 
-델타레이크는 내부적으로 필요한 로그 정보를 스파크의 데이터프레임으로 관리하고 있고, 위의 파일 추가(add) 로그만을 모은 데이터프레임에서 partitionValues 필드를 필터링하는 방식으로 동작하기 때문에 파일의 수가 많아도 빠르게 병렬 처리가 가능하다.
+델타레이크는 내부적으로 필요한 로그 정보를 스파크의 데이터프레임으로 관리하고 있고, 위의 파일추가(add) 로그만을 모은 데이터프레임에서 partitionValues 필드를 필터링하는 방식으로 동작하기 때문에 파일의 수가 많아도 빠르게 병렬 처리가 가능하다.
 
-아래는 예제의 물리적 실행 계획에서 파티션 프루닝이 적용된 모습이다. (PartitionFilters) 예제의 조건문 중에서 파티션 필드에 해당하는 year, gender 필드만 추가되었다.
+아래는 예제의 물리적 실행 계획에서 파티션 프루닝이 적용된 모습이다. 예제의 조건문 중에서 파티션 필드에 해당하는 year, gender 필드만 추가되어있다.
 
 ```
 +- FileScan parquet PartitionFilters: [isnotnull(year#502), isnotnull(gender#503), (year#502 = 2000), (gender#503 = male)], ...
@@ -39,9 +39,9 @@ df = df
 
 ## Predicate Pushdown
 
-델타레이크에서 조건절 푸시다운(Predicate Pushdown)은 크게 두 단계로 동작한다. 첫 번째 단계는 델타로그의 파일 추가 로그에 있는 통계 정보를 이용하여 데이터 파일을 필터링하는 것이고, 두 번째 단계는 파케이가 제공하는 푸시다운 기능을 이용하여 행 그룹을 필터링하는 것이다.
+델타레이크에서 조건절 푸시다운(Predicate Pushdown)은 크게 두 단계로 동작한다. 첫 번째 단계는 델타로그의 파일추가 로그에 있는 통계 정보를 이용하여 데이터 파일을 필터링하는 것이고, 두 번째 단계는 파케이가 제공하는 푸시다운 기능을 이용하여 행 그룹을 필터링하는 것이다.
 
-우선 델타로그부터 살펴보자. 아래 파일 추가 로그에서 통계 정보인 stats 필드를 보면 각 필드의 최대값(maxValues)과 최소값(minValues)을 알 수 있으니, 파티션 프루닝과 마찬가지로 파일 추가 로그만을 모은 데이터프레임에서 stats 필드를 필터링하는 방식으로 빠르게 필요한 파일들만을 가져올 수 있다.
+우선 델타로그부터 살펴보자. 아래 파일추가 로그에서 통계 정보인 stats 필드를 보면 각 필드의 최대값(maxValues)과 최소값(minValues)을 알 수 있으니, 파티션 프루닝과 마찬가지로 파일추가 로그만을 모은 데이터프레임에서 stats 필드를 필터링하는 방식으로 빠르게 필요한 파일들만을 가져올 수 있다.
 
 ```json
 {"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
@@ -49,7 +49,7 @@ df = df
 {"add":{"path":"year=2000/gender=male/part-00004-73109c31-e7e3-4674-8e8e-24c2bed9da35.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
 ```
 
-아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. (DataFilters)
+아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. 예제의 조건문 중에서 파티션 필드를 제외한 salary 필드만이 추가되어있다.
 
 ```
 +- FileScan parquet DataFilters: [isnotnull(salary#504L), (salary#504L >= 4000)], ...

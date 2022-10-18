@@ -25,7 +25,6 @@ df = df
 ...
 {"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}, ...}
 {"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}, ...}
-{"add":{"path":"year=2000/gender=male/part-00004-73109c31-e7e3-4674-8e8e-24c2bed9da35.c000.snappy.parquet","partitionValues":{"year":"2000","gender":"male"}, ...}
 ...
 ```
 
@@ -46,19 +45,26 @@ df = df
 ```json
 {"add":{"path":"year=2000/gender=male/part-00001-bb169a3b-6b2f-4432-a686-c5c596526780.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"maxValues\":{\"firstname\":\"James\",\"middlename\":\"\",\"lastname\":\"Smith\",\"salary\":3000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
 {"add":{"path":"year=2000/gender=male/part-00003-e0c02983-d88b-4a70-9855-42cc1a8766a5.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Michael\",\"middlename\":\"Rose\",\"lastname\":\"\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
-{"add":{"path":"year=2000/gender=male/part-00004-73109c31-e7e3-4674-8e8e-24c2bed9da35.c000.snappy.parquet","stats":"{\"numRecords\":1,\"minValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"maxValues\":{\"firstname\":\"Robert\",\"middlename\":\"\",\"lastname\":\"Williams\",\"salary\":4000},\"nullCount\":{\"firstname\":0,\"middlename\":0,\"lastname\":0,\"salary\":0}}", ...}}
 ```
 
-아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. 예제의 조건문 중에서 파티션 필드를 제외한 salary 필드만이 추가되어있다.
+아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. 예제의 조건문 중에서 파티션 필드를 제외한 salary 필드만 추가되어있다.
 
 ```
 +- FileScan parquet DataFilters: [isnotnull(salary#504L), (salary#504L >= 4000)], ...
 ```
 
-그리고 스파크가 이미 파케이 파일에 대한 푸시다운 필터링 기능을 제공하고 있기 때문에 이를 활용하면, 데이터 파일 전체가 아닌 필요한 행 그룹만을 빠르게 가져올 수 있다.
+그리고 스파크가 이미 파케이 파일에 대한 푸시다운 필터링 기능을 제공하고 있기 때문에 이를 활용하면, 데이터 파일 전체가 아닌 필요한 행 그룹만을 빠르게 가져올 수 있다. 아래는 예제의 물리적 실행 계획에서 조건절 푸시다운이 적용된 모습이다. 파티션 필드는 파케이 파일에 포함되어 있지 않기 때문에 파티션 필드를 제외한 salary 필드만 추가되어있다.
+
+```
++- FileScan parquet PushedFilters: [IsNotNull(salary), GreaterThanOrEqual(salary,4000)], ...
+```
 
 ## Projection Pruning
 
-파케이 파일에서 특정 필드만 읽는 기능도 스파크가 이미 제공하고 있기 때문에 이를 활용하면 불필요한 필드를 가져오는 비용을 줄일 수 있다.
+파케이 파일에서 특정 필드만 읽는 기능도 스파크가 이미 제공하고 있기 때문에 이를 활용하면 불필요한 필드를 가져오는 비용을 줄일 수 있다. 아래는 예제의 물리적 실행 계획에서 프로젝션 프루닝이 적용된 모습이다. 파티션 필드는 파케이 파일에 포함되어 있지 않기 때문에 파티션 필드를 제외한 salary 필드만 추가되어있다.
 
-지금까지 소개한 최적화 기법을 이용하면 델타레이크를 통해 필요한 데이터 파일에서, 필요한 행 그룹에서, 필요한 필드만을 효과적으로 가져와서 처리할 수 있게 된다.
+```
++- FileScan parquet ReadSchema: struct<salary:bigint>, ...
+```
+
+지금까지 소개한 최적화 기법을 이용하면 델타레이크를 통해 필요한 데이터 파일에서, 필요한 행 그룹에서, 필요한 필드만을 효과적으로 가져와서 처리할 수 있다.

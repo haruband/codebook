@@ -2,7 +2,7 @@ Cilium 에서 VETH 를 기반으로 Pod-To-Pod 통신이 이루어지는 과정�
 
 ![cilium.peer](./cilium-peer.png)
 
-bpf_redirect_peer() 함수의 역할은 단순하다. 이를 이용하여 특정 네트워크 장치로 패킷을 전달하면, 패킷이 해당 장치로 전달되는 것이 아니고 해당 장치의 연결장치(Peer)로 전달되는 것이다. (Pod 의 eth0 과 veth 는 한쌍의 VETH 이고, veth 의 연결장치는 Pod 의 eth0 이다.)
+bpf_redirect_peer() 함수의 역할은 단순하다. 이를 이용하여 특정 네트워크 장치로 패킷을 전달하면, 패킷이 해당 장치로 전달되는 것이 아니고 해당 장치의 연결장치(Peer)로 전달되는 것이다. (파드의 eth0 과 veth 는 한쌍의 VETH 이고, veth 의 연결장치는 파드의 eth0 이다.)
 
 Pod3 의 eth0 과 연결된 veth1 의 ingress BPF 프로그램에서 bpf_redirect_peer() 함수를 이용하여 Pod2 로 패킷을 전달하면, 호스트 네트워크 스택과 veth0 을 거치지 않고 바로 Pod2 의 eth0 으로 패킷이 전달된다.
 

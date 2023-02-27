@@ -82,7 +82,10 @@ BGP 모드는 MetalLB 가 데몬셋으로 설치하는 스피커가 BGP 피어(P
 
 ```bash
 root@node0:/etc/bird# ip route
-192.168.200.240 via 192.168.200.200 dev eno1 proto bird metric 32
+192.168.200.240 proto bird metric 32
+	nexthop via 192.168.200.200 dev eno1 weight 1
+	nexthop via 192.168.200.201 dev eno1 weight 1
+	nexthop via 192.168.200.202 dev eno1 weight 1
 192.168.200.241 via 192.168.200.201 dev eno1 proto bird metric 32
 192.168.200.242 via 192.168.200.202 dev eno1 proto bird metric 32
 192.168.200.243 via 192.168.200.200 dev eno1 proto bird metric 32
@@ -90,10 +93,22 @@ root@node0:/etc/bird# ip route
 ```
 
 ```bash
-root@node0:/etc/bird# ip route
-192.168.200.240 via 192.168.200.200 dev eno1 proto bird metric 32
-192.168.200.241 via 192.168.200.200 dev eno1 proto bird metric 32
-192.168.200.242 via 192.168.200.200 dev eno1 proto bird metric 32
-192.168.200.243 via 192.168.200.200 dev eno1 proto bird metric 32
+haruband@node0:~$ ip route
+192.168.200.240 proto bird metric 32
+	nexthop via 192.168.200.200 dev eno1 weight 1
+	nexthop via 192.168.200.201 dev eno1 weight 1
+	nexthop via 192.168.200.202 dev eno1 weight 1
+192.168.200.241 proto bird metric 32
+	nexthop via 192.168.200.200 dev eno1 weight 1
+	nexthop via 192.168.200.201 dev eno1 weight 1
+	nexthop via 192.168.200.202 dev eno1 weight 1
+192.168.200.242 proto bird metric 32
+	nexthop via 192.168.200.200 dev eno1 weight 1
+	nexthop via 192.168.200.201 dev eno1 weight 1
+	nexthop via 192.168.200.202 dev eno1 weight 1
+192.168.200.243 proto bird metric 32
+	nexthop via 192.168.200.200 dev eno1 weight 1
+	nexthop via 192.168.200.201 dev eno1 weight 1
+	nexthop via 192.168.200.202 dev eno1 weight 1
 ...
 ```

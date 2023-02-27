@@ -60,7 +60,7 @@ $ arp -a
 ...
 ```
 
-마지막으로 Node1 로 들어온 요청 메세지를 어떻게 0번 브로커 파드로 전달하는지 살펴보자. 아래는 Node1 의 서비스 목록(Cilium)이다. 로드밸런서로 들어온 요청을 0번 브로커 주소(10.0.2.233)로 전달하는 것을 확인할 수 있다. (eBPF 프로그램(Cilium)에서 DNAT(Destination NetworkAddressTranslation) 를 이용하여 메세지를 전달한다.)
+이제 Node1 로 들어온 요청 메세지를 어떻게 0번 브로커 파드로 전달하는지 살펴보자. 아래는 Node1 의 서비스 목록(Cilium)이다. 외부 주소로 들어온 요청을 0번 브로커 주소(10.0.2.233)로 전달하는 것을 확인할 수 있다. (eBPF 프로그램(Cilium)에서 DNAT(Destination NetworkAddressTranslation) 를 이용하여 메세지를 전달한다.)
 
 ```bash
 node1 $ cilium service list
@@ -116,3 +116,5 @@ haruband@node0:~$ ip route
 	nexthop via 192.168.200.202 dev eno1 weight 1
 ...
 ```
+
+마지막으로 외부 주소로 들어온 요청을 브로커로 전달하는 과정은 앞의 경우와 동일하다.

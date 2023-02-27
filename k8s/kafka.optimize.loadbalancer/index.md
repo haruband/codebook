@@ -34,7 +34,7 @@ kafka-2           1/1     Running   10.0.1.189   node0
 
 ## MetalLB L2 모드 기반 로드밸런싱
 
-L2 모드는 MetalLB 가 데몬셋으로 설치하는 스피커(Speaker)가 로드밸런서 주소(IP)에 대한 ARP 요청에 응답하는 방식이다. 간단하게 사용할 수 있지만, 해당 서비스의 엔드포인트가 2 개 이상의 노드에 있는 경우에는 하나의 노드만 요청을 받을 수 있는 문제가 있다. 예를 들어, Node0 과 Node1 에 엔드포인트가 동시에 존재하는 경우, MetalLB 는 임의로 리더를 선출하고, 리더로 선출된 노드의 스피커가 ARP 요청에 응답한다.
+L2 모드는 MetalLB 가 데몬셋으로 설치하는 스피커(Speaker)가 로드밸런서 주소(IP)에 대한 ARP 요청에 응답하는 방식이다. 간단하게 사용할 수 있지만, 서비스의 엔드포인트가 2 개 이상의 노드에 있는 경우에는 하나의 노드만 요청을 받을 수 있는 문제가 있다. 예를 들어, Node0 과 Node1 에 엔드포인트가 동시에 존재하는 경우, MetalLB 는 임의로 리더를 선출하고, 리더로 선출된 노드의 스피커가 ARP 요청에 응답한다.
 
 다음은 0번 브로커에 있는 토픽/파티션에 접근하는 클라이언트의 접속 정보이다. 위에 설정된 0번 브로커의 로드밸런서 주소(192.168.200.241)로 접속하는걸 볼 수 있다.
 
@@ -75,3 +75,25 @@ ID     Frontend                  Service Type   Backend
 ```
 
 ## MetalLB BGP 모드 기반 로드밸런싱
+
+BGP 모드는 MetalLB 가 데몬셋으로 설치하는 스피커가 BGP 피어(Peer)로 동작하면서 라우팅 정보를 갱신하는 방식이다. BGP 를 지원하는 라우터가 있어야만 사용할 수 있는 방식이지만, 서비스의 엔드포인트가 2 개 이상의 노드에 있는 경우에도 라우터가 지원하는 로드밸런싱 기능을 이용하여 트래픽을 분산 처리할 수 있다.
+
+다음은 오픈소스 라우팅 데몬인 [BIRD](https://bird.network.cz/) 를 이용하여 동작 과정을 분석해보았다.
+
+```bash
+root@node0:/etc/bird# ip route
+192.168.200.240 via 192.168.200.200 dev eno1 proto bird metric 32
+192.168.200.241 via 192.168.200.201 dev eno1 proto bird metric 32
+192.168.200.242 via 192.168.200.202 dev eno1 proto bird metric 32
+192.168.200.243 via 192.168.200.200 dev eno1 proto bird metric 32
+...
+```
+
+```bash
+root@node0:/etc/bird# ip route
+192.168.200.240 via 192.168.200.200 dev eno1 proto bird metric 32
+192.168.200.241 via 192.168.200.200 dev eno1 proto bird metric 32
+192.168.200.242 via 192.168.200.200 dev eno1 proto bird metric 32
+192.168.200.243 via 192.168.200.200 dev eno1 proto bird metric 32
+...
+```

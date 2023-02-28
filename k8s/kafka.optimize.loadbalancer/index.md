@@ -83,7 +83,7 @@ BGP 모드는 MetalLB 가 데몬셋으로 설치하는 스피커가 BGP 피어(P
 오픈소스 라우팅 데몬인 [BIRD](https://bird.network.cz/) 를 이용하여 MetalLB 의 BGP 모드를 간단히 검증하였다. 아래는 외부 트래픽 정책을 로컬로 설정했을 때 BIRD 가 설치된 노드의 라우팅 테이블이다. 브로커의 외부 주소는 각각 브로커 파드가 동작 중인 노드의 주소로 설정되어 있고, 부트스트랩의 외부 주소는 모든 브로커 파드가 동작 중인 세 개 노드의 주소로 설정되어 있다.
 
 ```bash
-root@node0:/etc/bird# ip route
+router $ ip route
 192.168.200.240 proto bird metric 32
 	nexthop via 192.168.200.200 dev eno1 weight 1
 	nexthop via 192.168.200.201 dev eno1 weight 1
@@ -97,7 +97,7 @@ root@node0:/etc/bird# ip route
 아래는 외부 트래픽 정책을 클러스터로 설정했을 때 BIRD 가 설치된 노드의 라우팅 테이블이다. 모든 노드를 통해서 모든 파드로 접속할 수 있기 때문에 모든 외부 주소는 모든 노드의 주소로 설정되어 있는 것을 볼 수 있다.
 
 ```bash
-haruband@node0:~$ ip route
+router $ ip route
 192.168.200.240 proto bird metric 32
 	nexthop via 192.168.200.200 dev eno1 weight 1
 	nexthop via 192.168.200.201 dev eno1 weight 1

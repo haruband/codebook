@@ -17,3 +17,5 @@ AmbientMesh 의 세부적인 동작 과정을 소개하기 전에 간단히 기�
 ![istio.proxy](./istio-proxy.png)
 
 앞에서 설명했던 것처럼 서비스 메시를 사용 중인 모든 파드에는 프록시(컨테이너)가 삽입되어 있고, 모든 송수신 패킷은 넷필터(IPTables)에 의해 프록시를 거치게 된다. Istio 를 이용하여 카나리(Canary) 배포를 한다면 출발지 파드의 프록시에서 목적지 파드가 선택되고, 접근 제어 정책을 사용한다면 목적지 파드의 프록시에서 해당 정책을 수행한다.
+
+![istio.ambientmesh](./istio-ambientmesh.png)

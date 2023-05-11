@@ -5,7 +5,7 @@
 ```
 
 ```bash
-node0# iptables -t raw -L --line-numbers
+node0 $ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */
@@ -40,7 +40,7 @@ num  target     prot opt source               destination
 ```
 
 ```bash
-node0# sysctl -a | grep "\.rp_filter"
+node0 $ sysctl -a | grep "\.rp_filter"
 net.ipv4.conf.all.rp_filter = 0
 net.ipv4.conf.cali0eff241a9cd.rp_filter = 0
 net.ipv4.conf.cali3cd40f41ebe.rp_filter = 0
@@ -53,7 +53,7 @@ net.ipv4.conf.tunl0.rp_filter = 2
 ```
 
 ```bash
-node0# iptables -t raw -L --line-numbers
+node0 $ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */

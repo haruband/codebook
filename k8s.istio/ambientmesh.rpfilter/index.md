@@ -8,9 +8,9 @@
 ...
 ```
 
-정확한 원인을 파악하기 위해, Ztunnel 의 네트워크 네임스페이스(nsenter)에서 송수신 패킷을 확인(tcpdump)해보니, 아래와 같이 DNS 요청은 나가는데 응답이 오지 않는 상황이었다. 그래서 호스트 네트워크 네임스페이스에서 확인해보니 DNS 요청이 외부로 나가지 않고 있었다. 이런 경우에는 요청 패킷이 호스트에서 드롭되고 있을 가능성이 높고, 주요 원인으로 생각해볼 수 있는 것은 바로 RPFilter 이다. 이유는 Ztunnel 이 투명하게 동작하기 위해 패킷을 전달할 때 출발지 주소로 원래의 출발지 주소를 사용하기 때문에 RPFilter 에 의해 문제가 발생할 가능성이 높기 때문이다.
+정확한 원인을 파악하기 위해, Ztunnel 의 네트워크 네임스페이스(nsenter)에서 송수신 패킷을 확인(tcpdump)해보니, 아래와 같이 DNS 요청은 나가는데 응답이 오지 않는 상황이었다. 그래서 호스트 네트워크 네임스페이스에서 확인해보니 DNS 요청이 외부로 나가지 않고 있었다. 이런 경우에는 요청 패킷이 호스트에서 드롭되고 있을 가능성이 높고, 주요 원인으로 생각해볼 수 있는 것은 바로 RPFilter 이다. 이유는 Ztunnel 이 투명하게 동작하기 위해 패킷을 전달할 때 출발지 주소로 원래의 출발지 주소를 사용해서 RPFilter 에 의해 문제가 발생할 가능성이 높기 때문이다.
 
-RPFilter 는 해커들이 DDoS 공격을 할 때 주로 사용하는 IP 스푸핑(Spoofing)을 막기 위해 사용되는 기술이다. IP 스푸핑은 패킷의 출발지 주소를 임의로 조작하여 원하는 결과를 얻어내는 기술이고, RPFilter 는 응답 패킷을 출발지 주소로 동일한 네트워크 장치를 이용하여 전달할 수 있는지를 확인해서 IP 스푸핑을 방지하는 기술이다.
+RPFilter 는 해커들이 DDoS 공격을 할 때 주로 사용하는 IP 스푸핑(Spoofing)을 막기 위해 사용되는 기술이다. IP 스푸핑은 패킷의 출발지 주소를 임의로 조작하여 원하는 결과를 얻어내는 기술이고, RPFilter 는 응답 패킷을 동일한 네트워크 장치를 이용하여 출발지 주소로 전달할 수 있는지를 확인해서 IP 스푸핑을 방지하는 기술이다.
 
 ```bash
 $ nsenter -t $(pidof ztunnel) -n tcpdump -xxx -n
@@ -19,7 +19,7 @@ $ nsenter -t $(pidof ztunnel) -n tcpdump -xxx -n
 ...
 ```
 
-우선, 리눅스의 네트워크 스택에 포함되어 있는 RPFilter 기능이 사용하고 있는지를 확인해보았다. 아래와 같이 모든 파드의 호스트 네트워크 장치는 RPFilter 기능을 사용하지 않았고, 이는 Calico 에서 해당 기능 대신 IPTables 가 제공하는 RPFilter 기능을 사용하기 때문이었다.
+우선, 리눅스의 네트워크 스택에 포함되어 있는 RPFilter 기능을 사용하고 있는지를 확인해보았다. 아래와 같이 모든 파드의 호스트 네트워크 장치는 RPFilter 기능을 사용하지 않았고, 이는 Calico 에서 해당 기능 대신 IPTables 가 제공하는 RPFilter 기능을 사용하기 때문이었다.
 
 ```bash
 $ sysctl -a | grep "\.rp_filter"
@@ -33,21 +33,13 @@ net.ipv4.conf.enp1s0.rp_filter = 2
 net.ipv4.conf.lo.rp_filter = 0
 ```
 
-아래는 Calico 가 사용중인 RPFilter 관련된 IPTables 체인 목록이다. 보시는 것처럼 cali-PREROUTING 체인의 4번 룰에서 RPFilter 를 이용하여 패킷을 드롭하는 걸 볼 수 있다.
+아래는 Calico 가 사용하고 있는 RPFilter 관련된 IPTables 체인 목록이다. 보시는 것처럼 cali-PREROUTING 체인의 4번 룰에서 RPFilter 를 이용하여 패킷을 드롭하는 걸 볼 수 있다.
 
 ```bash
 $ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */
-
-Chain OUTPUT (policy ACCEPT)
-num  target     prot opt source               destination
-...
-
-Chain cali-OUTPUT (1 references)
-num  target     prot opt source               destination
-...
 
 Chain cali-PREROUTING (1 references)
 num  target         prot opt source             destination
@@ -56,17 +48,11 @@ num  target         prot opt source             destination
 4    DROP           all  --  anywhere           anywhere    /* cali:fSSbGND7dgyemWU7 */ mark match 0x40000/0x40000 rpfilter validmark invert
 ...
 
-Chain cali-from-host-endpoint (1 references)
-num  target     prot opt source               destination
-
 Chain cali-rpf-skip (1 references)
-num  target     prot opt source               destination
-
-Chain cali-to-host-endpoint (1 references)
 num  target     prot opt source               destination
 ```
 
-그렇다면 Calico 에서도 AmbientMesh 를 사용할 수 없는 것일까? 그건 아니었고, 아래를 보면 Ztunnel 파드에 이를 해결하기 위한 설정(allowedSourcePrefixes)이 들어있는 것을 볼 수 있다. 해당 설정은 RPFilter 를 우회하기 위한 설정으로, 등록된 주소 대역은 출발지 주소로 사용할 수 있다는 의미이다. 즉, 아래와 같이 설정되었다면 Ztunnel 은 패킷의 출발지 주소로 10.0.0.0/8 의 주소 대역을 사용할 수 있다는 것이다.
+그렇다면 Calico 에서도 AmbientMesh 를 사용할 수 없는 것일까? 그건 아니었고, 아래를 보면 Ztunnel 파드에 이를 해결하기 위한 설정(allowedSourcePrefixes)이 들어있는 것을 볼 수 있다. 해당 설정은 RPFilter 를 우회하기 위한 설정으로, 등록된 주소 대역은 출발지 주소로 사용할 수 있다는 의미이다. 즉, 아래와 같이 설정되었다면 Ztunnel 파드는 패킷의 출발지 주소로 10.0.0.0/8 의 주소 대역을 사용할 수 있다는 것이다.
 
 ```bash
 apiVersion: v1
@@ -87,21 +73,13 @@ metadata:
 FELIX_WORKLOADSOURCESPOOFING=Any
 ```
 
-Calico 에서 해당 기능을 활성화한 다음, 다시 IPTables 체인 목록을 확인해보면 4번 룰(DROP)보다 앞에 있는 3번 룰(cali-rpf-skip)의 체인에 새로운 룰이 추가된 것을 볼 수 있다. cali-rpf-skip 체인에 추가된 1번 룰은 위에서 설정한 대로 출발지 주소가 10.0.0.0/8 이면 패킷을 허용(ACCEPT)한다는 의미이다.
+Calico 에 해당 기능을 추가한 다음, 다시 IPTables 체인 목록을 확인해보면 4번 룰(DROP)보다 앞에 있는 3번 룰(cali-rpf-skip)의 체인에 새로운 룰이 추가된 것을 볼 수 있다. cali-rpf-skip 체인에 추가된 1번 룰은 위에서 설정한 대로 출발지 주소가 10.0.0.0/8 이면 패킷을 허용(ACCEPT)한다는 의미이다.
 
 ```bash
 $ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */
-
-Chain OUTPUT (policy ACCEPT)
-num  target     prot opt source               destination
-...
-
-Chain cali-OUTPUT (1 references)
-num  target     prot opt source               destination
-...
 
 Chain cali-PREROUTING (1 references)
 num  target         prot opt source             destination
@@ -110,15 +88,9 @@ num  target         prot opt source             destination
 4    DROP           all  --  anywhere           anywhere    /* cali:fSSbGND7dgyemWU7 */ mark match 0x40000/0x40000 rpfilter validmark invert
 ...
 
-Chain cali-from-host-endpoint (1 references)
-num  target     prot opt source               destination
-
 Chain cali-rpf-skip (1 references)
 num  target     prot opt source               destination
 1    ACCEPT     all  --  10.0.0.0/8           anywhere             /* cali:bSgSJ0C4gCLn3ilJ */
-
-Chain cali-to-host-endpoint (1 references)
-num  target     prot opt source               destination
 ```
 
 지금까지 AmbientMesh 를 처음 설치하면서 겪었던 문제에 대해 소개하였다. AmbientMesh 뿐 아니라 대부분의 CNI 는 패킷을 조작하여 원하는 기능을 수행하는 경우가 많기 때문에 RPFilter 에 대해서는 충분히 이해하고 있을 필요가 있다.

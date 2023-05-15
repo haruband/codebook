@@ -5,7 +5,15 @@
 ```
 
 ```bash
-node0 $ sysctl -a | grep "\.rp_filter"
+$ nsenter -t $(pidof ztunnel) -n
+$ tcpdump -xxx -n
+...
+01:30:01.942451 IP 10.69.11.13.53562 > 172.16.0.10.53: 9568+ A? istiod.istio-system.svc.istio-system.svc.cluster.local. (72)
+...
+```
+
+```bash
+$ sysctl -a | grep "\.rp_filter"
 net.ipv4.conf.all.rp_filter = 0
 net.ipv4.conf.cali0eff241a9cd.rp_filter = 0
 net.ipv4.conf.cali3cd40f41ebe.rp_filter = 0
@@ -17,7 +25,7 @@ net.ipv4.conf.lo.rp_filter = 0
 ```
 
 ```bash
-node0 $ iptables -t raw -L --line-numbers
+$ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */
@@ -48,7 +56,59 @@ num  target     prot opt source               destination
 ```
 
 ```bash
-node0 $ iptables -t raw -L --line-numbers
+$ route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+...
+10.69.11.6      0.0.0.0         255.255.255.255 UH    0      0        0 calia3ea794220c
+10.69.11.7      0.0.0.0         255.255.255.255 UH    0      0        0 cali51535a04511
+10.69.11.9      0.0.0.0         255.255.255.255 UH    0      0        0 cali5cb21c4c214
+10.69.11.10     0.0.0.0         255.255.255.255 UH    0      0        0 caliaa9bb384cef
+10.69.11.14     0.0.0.0         255.255.255.255 UH    0      0        0 cali3b3bee917c9
+...
+```
+
+```bash
+$ ip route get 10.69.11.7
+10.69.11.7 dev cali51535a04511 src 192.168.122.202 uid 1000
+
+$ ip route get 10.69.11.13
+RTNETLINK answers: Invalid argument
+```
+
+```bash
+apiVersion: v1
+kind: Pod
+metadata:
+  annotations:
+    ambient.istio.io/redirection: disabled
+    cni.projectcalico.org/allowedSourcePrefixes: '["10.0.0.0/8"]'
+...
+  labels:
+    app: ztunnel
+...
+```
+
+```bash
+FELIX_WORKLOADSOURCESPOOFING=Any
+```
+
+```bash
+$ route -n
+Kernel IP routing table
+Destination     Gateway         Genmask         Flags Metric Ref    Use Iface
+...
+10.69.11.6      0.0.0.0         255.255.255.255 UH    0      0        0 calia3ea794220c
+10.69.11.7      0.0.0.0         255.255.255.255 UH    0      0        0 cali51535a04511
+10.69.11.9      0.0.0.0         255.255.255.255 UH    0      0        0 cali5cb21c4c214
+10.69.11.10     0.0.0.0         255.255.255.255 UH    0      0        0 caliaa9bb384cef
+10.69.11.13     0.0.0.0         255.255.255.255 UH    0      0        0 cali3010ec13e30
+10.69.11.14     0.0.0.0         255.255.255.255 UH    0      0        0 cali3b3bee917c9
+...
+```
+
+```bash
+$ iptables -t raw -L --line-numbers
 Chain PREROUTING (policy ACCEPT)
 num  target     prot opt source               destination
 1    cali-PREROUTING  all  --  anywhere             anywhere             /* cali:6gwbT8clXdHdC1b1 */

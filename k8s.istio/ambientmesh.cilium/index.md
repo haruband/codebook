@@ -91,3 +91,5 @@ $ cat /etc/cni/net.d/05-cilium.conflist
 ```
 
 두 번째는 중첩된 eBPF 프로그램 관련된 문제이다. Istio 에서 대부분의 정책은 서비스 주소를 기반으로 동작한다.
+
+![istio.ambientmesh.cilium](./istio-ambientmesh-cilium.png)

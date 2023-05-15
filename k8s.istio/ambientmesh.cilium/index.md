@@ -2,7 +2,7 @@
 
 CNI 로 Cilium 을 사용하는 경우, AmbientMesh 를 설치하면 정상적으로 동작하지 않는다. 크게 두 가지 이유가 있으니 하나씩 살펴보도록 하자.
 
-첫 번째는 새로운 파드의 네트워크 환경을 구축해주는 CNI 플러그인 설정 파일 관련된 문제이다. 쿠버네티스 환경에서 새로운 파드가 추가되면 컨테이너 런타임(cri-o)에서 등록된 CNI 플러그인(/etc/cni/net.d)을 이용하여 새로운 파드를 위한 네트워크 환경을 구축한다. 예를 들어, Cilium 을 사용하는 경우, 아래와 같은 CNI 플러그인 설정을 볼 수 있다.
+첫 번째는 새로운 파드의 네트워크 환경을 구축해주는 CNI 플러그인 설정 파일 관련된 문제이다. 쿠버네티스 환경에서 새로운 파드가 추가되면 컨테이너 런타임(cri-o)은 등록된 CNI 플러그인(/etc/cni/net.d)을 이용하여 새로운 파드를 위한 네트워크 환경을 구축한다. 예를 들어, Cilium 을 사용하는 경우, 아래와 같은 CNI 플러그인 설정을 볼 수 있다.
 
 ```bash
 $ cat /etc/cni/net.d/05-cilium.conflist
@@ -19,13 +19,13 @@ $ cat /etc/cni/net.d/05-cilium.conflist
 }
 ```
 
-위와 같은 CNI 플러그인 설정을 가진 환경에서 새로운 파드가 추가되면 컨테이너 런타임은 CNI 플러그인 실행 파일 디렉토리(/opt/cni/bin)에서 타입 이름(cilium-cni)과 동일한 이름을 가진 파일(/opt/cni/bin/cilium-cni)을 실행(CmdAdd)한다. 해당 실행 파일(cilium-cni)에서는 새롭게 추가된 파드를 위한 네트워크 장치를 만들고 eBPF 프로그램을 등록하는 등의 일을 수행한다.
+위와 같은 CNI 플러그인 설정을 가진 환경에서 새로운 파드가 추가되면 컨테이너 런타임은 CNI 플러그인 실행 파일 디렉토리(/opt/cni/bin)에서 타입 이름(cilium-cni)과 동일한 이름을 가진 파일(/opt/cni/bin/cilium-cni)을 실행(CmdAdd)한다. Cilium 의 CNI 플러그인 실행 파일(cilium-cni)은 새롭게 추가된 파드를 위한 네트워크 장치를 만들고 eBPF 프로그램을 등록하는 등의 일을 수행한다.
 
 AmbientMesh 도 기존의 CNI 와 유사한 방식으로 동작하는데, CNI 플러그인(istio-cni)을 등록하고, 새로운 파드가 추가되면 CNI 플러그인 실행 파일(/opt/cni/bin/istio-cni)이 실행되어 필요한 eBPF 프로그램을 등록하는 등의 일을 수행한다.
 
 여기서 문제는 AmbientMesh 가 CNI 플러그인 설정 파일 디렉토리(/etc/cni/net.d)를 모니터링하면서 파일이 변경될 때마다 자신이 필요한 설정을 추가하고, Cilium 도 CNI 플러그인 설정 파일 디렉토리를 모니터링하면서 파일이 변경될 때마다 불필요한 설정을 제거한다는 것이다.
 
-그래서 CNI 플러그인 설정 파일 갱신을 담당하고 있는 파드(cilium, istio-cni-node)의 로그를 살펴보면, 아래처럼 반복적으로 설정 파일을 서로 수정하는 것을 볼 수 있다.
+그래서 CNI 플러그인 설정 파일을 담당하는 파드(cilium, istio-cni-node)의 로그를 살펴보면, 아래처럼 반복적으로 설정 파일을 서로 수정하는 것을 볼 수 있다.
 
 ```bash
 $ kubectl logs cilium-62984 -n kube-system
@@ -59,7 +59,7 @@ $ kubectl logs istio-cni-node-smkbc -n istio-system
 ...
 ```
 
-AmbientMesh 가 원하는 CNI 플러그인 설정은 아래와 같지만, Cilium 에서 설정 파일을 지속적으로 변경하기 때문에 문제가 발생한 것이다.
+AmbientMesh 가 원하는 CNI 플러그인 설정은 아래와 같지만, Cilium 에서 설정 파일을 지속적으로 변경하기 때문에 문제가 발생한 것이다. 이 문제는 다양한 방법으로 해결할 수 있겠지만, 개인적인 생각으로는 CNI 플러그인 목록을 하나의 파일에서 관리하지 않고, 여러 파일로 분리해서 각자 관리하는 것이 깔끔해 보인다.
 
 ```bash
 $ cat /etc/cni/net.d/05-cilium.conflist

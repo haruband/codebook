@@ -93,4 +93,4 @@ num  target     prot opt source               destination
 1    ACCEPT     all  --  10.0.0.0/8           anywhere             /* cali:bSgSJ0C4gCLn3ilJ */
 ```
 
-지금까지 AmbientMesh 를 처음 설치하면서 겪었던 문제에 대해 소개하였다. AmbientMesh 뿐 아니라 대부분의 CNI 는 패킷을 조작하여 원하는 기능을 수행하는 경우가 많기 때문에 RPFilter 에 대해서는 충분히 이해하고 있을 필요가 있다.
+지금까지 AmbientMesh 를 처음 설치하면서 겪었던 문제에 대해 분석하였다. AmbientMesh 뿐 아니라 대부분의 CNI 는 패킷을 조작하여 원하는 기능을 수행하는 경우가 많기 때문에 RPFilter 에 대해서는 충분히 이해하고 있을 필요가 있다.

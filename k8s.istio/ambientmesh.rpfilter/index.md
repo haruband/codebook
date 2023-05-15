@@ -1,8 +1,16 @@
+오늘은 Istio 에서 공개한 AmbientMesh 를 처음 설치할 때 겪었던 문제에 대해 소개하고자 한다. 주로 사용하는 Cilium 은 아직 지원되지 않기 때문에 Calico(+IPTables)를 CNI 로 사용하였다.
+
+간단히 AmbientMesh 를 설치했는데, Ztunnel 이 정상적인 동작을 하지 않았고, 아래와 같은 로그가 반복적으로 출력되고 있었다.
+
 ```bash
 ...
 2023-05-11T08:37:59.078700Z  WARN xds{id=1}: ztunnel::xds::client: XDS client connection error: gRPC connection error (Unknown error): client error (Connect), retrying in 20ms
 ...
 ```
+
+정확한 원인을 파악하기 위해, Ztunnel 의 네트워크 네임스페이스(nsenter)에서 송수신 패킷을 확인(tcpdump)해보니, 아래와 같이 DNS 요청은 나가는데 응답이 오지 않는 상황이었다. 그래서 호스트 네트워크 네임스페이스에서 확인해보니 DNS 요청이 외부로 나가지 않고 있었다. 이런 경우에는 요청 패킷이 호스트에서 드롭되고 있을 가능성이 높고, 주요 원인으로 생각해볼 수 있는 것은 바로 RPFilter 이다.
+
+RPFilter 는 해커들이 DDoS 공격을 할 때 주로 사용하는 IP 스푸핑(Spoofing)을 막기 위해 사용되는 기술이다. IP 스푸핑은 패킷의 출발지 주소를 임의로 조작하여 원하는 결과를 얻어내는 기술이고, RPFilter 는 응답 패킷을 출발지 주소로 동일한 네트워크 장치를 이용하여 전달할 수 있는지를 확인해서 IP 스푸핑을 방지하는 기술이다.
 
 ```bash
 $ nsenter -t $(pidof ztunnel) -n

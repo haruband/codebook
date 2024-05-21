@@ -13,7 +13,7 @@ df = df
 
 ## Partition Pruning
 
-델타레이크는 사용 중인 파티션 필드에 대한 정보를 메타데이타(metadata) 로그에 담고 있다. 아래 로그를 보면 두 개의 파티션 필드(year, gender)를 사용하고 있는 것을 알 수 있다.
+델타레이크는 사용 중인 파티션 필드에 대한 정보를 메타데이터(metadata) 로그에 담고 있다. 아래 로그를 보면 두 개의 파티션 필드(year, gender)를 사용하고 있는 것을 알 수 있다.
 
 ```json
 {"metaData": {"partitionColumns": ["year", "gender"]}}

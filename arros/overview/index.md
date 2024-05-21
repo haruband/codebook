@@ -18,7 +18,7 @@ Spark 와 Flink 는 기본적으로 Row 기반으로 동작하기 때문에 Colu
 
 Java 에서 메모리 관리를 도와주는 GC (Garbage Collection) 는 다양한 문제를 유발한다. GC 가 동작할 때마다 시스템 자원을 낭비하고 예측할 수 없는 지연시간을 발생시키기도 하며, 예상하기 힘든 OOM (Out-Of-Memory) 의 원인이 되기도 한다. 그리고 CXL 과 같은 차세대 메모리를 이용하여 시스템 메모리를 늘려도 Java 에서 마음대로 힙(Heap)의 크기를 늘리기 힘든 문제가 있다. (힙의 크기가 늘어나는 만큼 GC 에 의해 관리되는 영역도 늘어나기 때문이다.)
 
-### 어떻게 개발하였나?
+## 어떻게 개발하였나?
 
 우리는 위의 문제들을 해결하기 위해 [Rust](https://www.rust-lang.org/) 와 [Datafusion](https://datafusion.apache.org/) 을 이용하여 Arros 를 개발하고 있다. 높은 안정성과 성능이 요구되는 분야에서 Rust 는 이미 두각을 보이고 있으며, Datafusion 도 오픈소스로 개발 중인 쿼리 엔진으로 이미 다양한 프로젝트에서 좋은 성과를 내고 있다.
 
@@ -52,9 +52,30 @@ Arros 에서는 SQL 을 이용하여 파이프라인을 구성할 수 있고, AI
 docker-compose up
 ```
 
-이제 Arros 는 사용하기 위한 준비는 끝났으니, 예제를 하나씩 살펴보도록 하자.
+이제 Arros 를 사용하기 위한 준비는 끝났으니, 예제를 하나씩 살펴보도록 하자.
 
 ### Count
+
+Count 예제는 입력 데이터가 몇 개의 행(Row)으로 구성되어있는지 계산해주는 간단한 예제이다. 우선 여기에 사용된 UDF 는 아래와 같다.
+
+```python
+__arros__results = [len(__arros__column0)]
+```
+
+Arros 에서는 UDF 에 입력값으로 전달되는 컬럼(Column)이나 스칼라(Scalar)를 순서대로 `__arros__columnN` 변수로 전달한다. 그리고 UDF 에서 `__arros__results` 변수에 저장한 값은 Arros 에서 결과값으로 사용된다.
+
+이제 SQL 을 이용하여 간단한 파이프라인을 구성해보자.
+
+```sql
+DROP TABLE IF EXISTS faker0;
+DROP TABLE IF EXISTS buffer0;
+CREATE UNBOUNDED EXTERNAL TABLE faker0 (t0 timestamp, i0 int, f0 float, s0 varchar) STORED AS FAKER WITH ORDER (s0 ASC) LOCATION 'faker0' OPTIONS ('messages' '100', 'interval' '100ms', 'batchsize' '1');
+CREATE FUNCTION count(int) RETURNS bigint AS 'count';
+CREATE UNBOUNDED EXTERNAL TABLE buffer0 (t0 timestamp, i0 bigint) STORED AS BUFFER location 'buffer0';
+INSERT INTO buffer0 SELECT tumble(t0, '3s', '100ms'), count(i0) FROM faker0;
+```
+
+위의 파이프라인에서 `faker` 테이블은 지정된 스키마로 임의의 데이터를 생성해주는 역할을 하고, `buffer` 테이블은 데이터를 임시로 보관하는 역할을 한다. 그리고 tumble() 함수는 Arros 가 제공하는 윈도우 기능으로 첫 번째 입력값이 기준이 되는 타임스탬프(Timestamp) 컬럼이고, 두 번째와 세 번째 입력값은 각각 윈도우와 워터마크의 크기를 의미한다. 즉, 위의 파이프라인은 임의로 생성된 3초 동안의 데이터를 묶어서 count() 함수를 호출하는 예제이다. (Arros 를 이용하여 해당 예제를 실행해보는 방법은 [README.md](https://github.com/ingkle-oss/arros/tree/main/simple#readme) 를 참고하기 바란다.)
 
 ### Delta
 

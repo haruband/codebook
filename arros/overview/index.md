@@ -40,7 +40,7 @@ Rust 는 GC 없이 메모리 안정성을 보장하기 때문에 필요한 만�
 
 ![overview.png](./overview.png)
 
-Arros 에서는 SQL 을 이용하여 파이프라인을 구성할 수 있고, AI 추론과 같은 복잡한 기능은 UDF (User-Defined Function) 을 이용하여 사용할 수 있다. 예를 들어, 파이썬으로 구현된 AI 추론 기능을 UDF 로 등록하면 파이프라인이 실행되는 과정 중에 외부 런타임(Runtime)에서 해당 기능이 실행된다.
+Arros 에서는 SQL 을 이용하여 파이프라인을 구성할 수 있고, AI 추론과 같은 복잡한 기능은 UDF (User-Defined Function) 를 이용하여 사용할 수 있다. 예를 들어, 파이썬으로 구현된 AI 추론 기능을 UDF 로 등록하면 파이프라인이 실행되는 과정 중에 외부 런타임(Runtime)에서 해당 기능이 실행된다.
 
 ## 어떻게 사용하는가?
 
@@ -78,5 +78,17 @@ INSERT INTO buffer0 SELECT tumble(t0, '3s', '100ms'), count(i0) FROM faker0;
 위의 파이프라인에서 `faker` 테이블은 지정된 스키마로 임의의 데이터를 생성해주는 역할을 하고, `buffer` 테이블은 데이터를 임시로 보관하는 역할을 한다. 그리고 tumble() 함수는 Arros 가 제공하는 윈도우 기능으로 첫 번째 입력값이 기준이 되는 타임스탬프(Timestamp) 컬럼이고, 두 번째와 세 번째 입력값은 각각 윈도우와 워터마크의 크기를 의미한다. 즉, 위의 파이프라인은 임의로 생성된 3초 동안의 데이터를 묶어서 count() 함수를 호출하는 예제이다. (Arros 를 이용하여 해당 예제를 실행해보는 방법은 [README.md](https://github.com/ingkle-oss/arros/tree/main/simple#readme) 를 참고하기 바란다.)
 
 ### Delta
+
+Delta 예제는 입력 데이터를 Minio(S3) 에 [Delta](https://delta.io/) 포맷으로 저장하는 예제이다. 아래는 SQL 을 이용하여 파이프라인을 구성한 것이다.
+
+```sql
+DROP TABLE IF EXISTS faker0;
+DROP TABLE IF EXISTS delta0;
+CREATE UNBOUNDED EXTERNAL TABLE faker0 (t0 timestamp, i0 int, f0 float, s0 varchar) STORED AS FAKER WITH ORDER (s0 ASC) LOCATION 'faker0' OPTIONS ('messages' '10000', 'interval' '100ms', 'batchsize' '10');
+CREATE EXTERNAL TABLE delta0 (d0 date not null, i0 int, f0 float, s0 varchar) STORED AS DELTASINK LOCATION 's3://delta' PARTITIONED BY (d0) OPTIONS ('commit_interval' '3s', 'checkpoint_interval' '10');
+INSERT INTO delta0 (d0, i0, f0, s0) SELECT CAST(t0 as date), i0, f0, s0 FROM faker0;
+```
+
+위의 파이프라인에서 `deltasink` 테이블은 지정된 위치(s3://delta)에 Delta 포맷으로 데이터를 파티셔닝(d0)하여 저장하는 역할을 한다.
 
 ### ONNX

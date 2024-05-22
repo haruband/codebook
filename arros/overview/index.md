@@ -158,7 +158,7 @@ INSERT INTO buffer0 SELECT object, onnx(s3presign(object)) FROM events;
 간단히 동작 과정을 요약하면 아래와 같다.
 
 1. 이미지 분류에 사용할 모델을 등록한다. (`resnet50:latest`)
-2. UDF 함수에서 사용할 모델 이름(`model`)과 실행 방식(`provider`)을 설정한다.
+2. UDF 함수에서 사용할 모델 이름(`resnet50`)과 실행 방식(`CPUExecutionProvider`)을 설정한다.
 3. 사용자가 이미지를 `contents` 버킷에 추가한다.
 4. 오브젝트 스토리지가 이벤트를 `contents` 토픽에 추가한다.
 5. 이벤트에서 이미지 경로를 추출해서 ONNX 함수를 호출한다.

@@ -92,3 +92,69 @@ INSERT INTO delta0 (d0, i0, f0, s0) SELECT CAST(t0 as date), i0, f0, s0 FROM fak
 위의 파이프라인에서 `deltasink` 테이블은 지정된 위치(s3://delta)에 Delta 포맷으로 데이터를 파티셔닝(d0)하여 저장하는 역할을 한다.
 
 ### ONNX
+
+ONNX 예제는 오브젝트 스토리지에 올라온 이미지를 Resnet50 모델로 분류(Classification)해주는 간단한 예제이다. 우선 여기에 사용된 UDF 부터 살펴보자.
+
+```python
+import os
+import numpy as np
+from skimage import io
+from skimage.transform import resize
+import onnxruntime
+
+__arros__results = []
+
+for image in __arros__column0:
+    input = resize(io.imread(image), (224, 224))
+
+    input = np.expand_dims(np.array(input, dtype=np.float32), axis=0)
+    input = np.array(np.repeat(input, 32, axis=0), dtype=np.float32)
+    input = np.transpose(input, (0, 3, 1, 2))
+
+    session = onnxruntime.InferenceSession(
+        os.path.join(__arros__cwd, __arros__model), providers=[__arros__provider]
+    )
+    output = session.run([], {"input.1": input})
+
+    output = np.array(output)
+    output = output.reshape(-1)
+    output = np.exp(output - np.max(output))
+    output = output / output.sum(axis=0)
+    output = output.tolist()
+    output = np.argmax(output)
+
+    __arros__results.append(output)
+```
+
+위 함수는 오브젝트 스토리지에 올라온 이미지를 받아서 전처리한 다음, ONNX 파일로 배포된 모델을 이용하여 분류한 결과값을 후처리해서 넘겨주는 기능을 한다.
+
+이제 SQL 을 이용하여 구성한 파이프라인을 살펴보자.
+
+```sql
+DROP TABLE IF EXISTS contents;
+DROP TABLE IF EXISTS buffer0;
+CREATE UNBOUNDED EXTERNAL TABLE contents STORED AS KAFKA LOCATION 'contents' OPTIONS ('bootstrap.servers' 'redpanda:9092', 'security.protocol' 'plaintext');
+LOAD 'model=resnet50:latest';
+SET model='resnet50';
+SET provider='CPUExecutionProvider';
+CREATE FUNCTION s3event(varchar, varchar) RETURNS varchar AS 's3event';
+CREATE FUNCTION s3presign(varchar) RETURNS varchar AS 's3presign';
+CREATE FUNCTION onnx(varchar) RETURNS bigint AS 'onnx';
+CREATE UNBOUNDED EXTERNAL TABLE buffer0 (url varchar, result bigint) STORED AS BUFFER location 'buffer0';
+CREATE VIEW events AS SELECT s3event(__meta__payload, 'create') AS object FROM contents;
+INSERT INTO buffer0 SELECT object, onnx(s3presign(object)) FROM events;
+```
+
+위의 파이프라인에서 `kafka` 테이블은 `contents` 버킷에 새로운 오브젝트가 추가될때 생성되는 이벤트를 넘겨주는 역할을 하고, `s3event` 와 `s3presign` 함수는 각각 이벤트에서 이미지 경로를 추출하는 역할과 이미지 경로를 PresignedURL 로 변환해주는 역할을 한다. 그리고 Arros 는 간단한 모델 관리 기능을 제공하는데, 이를 이용하여 새로운 모델을 등록한 뒤 파이프라인에서 등록된 모델 중 하나를 선택해서 사용할 수 있다. (`resnet50:latest` 라고 지정하면 가장 최근에 등록된 모델을 사용한다는 의미이다.) 마지막으로 `model` 과 `provider` 를 설정하는 부분이 있는데, 파이프라인에서 이렇게 변수를 설정하면 UDF 에서 `__arros__` 접두어를 붙여서 바로 사용할 수 있다. 즉, 파이프라인에서 `model` 이라고 설정하면, UDF 에서 `__arros__model` 변수로 사용할 수 있다는 말이다.
+
+간단히 동작 과정을 요약하면 아래와 같다.
+
+1. 이미지 분류에 사용할 모델을 등록한다. (`resnet50:latest`)
+2. UDF 함수에서 사용할 모델 이름(`model`)과 실행 방식(`provider`)을 설정한다.
+3. 사용자가 이미지를 `contents` 버킷에 추가한다.
+4. 오브젝트 스토리지가 이벤트를 `contents` 토픽에 추가한다.
+5. 이벤트에서 이미지 경로를 추출해서 ONNX 함수를 호출한다.
+6. ONNX 함수는 이미지를 분류한 결과값을 돌려준다.
+7. 3~6 번 과정이 반복된다.
+
+지금까지 Arros 를 왜, 어떻게 개발하였는지에 대해 소개하였고, 몇 가지 예제를 통해 사용법에 대해서도 간단히 살펴보았다. 이외에도 새로운 예제를 지속적으로 추가할 예정이니 참고하기 바란다.

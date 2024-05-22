@@ -12,7 +12,7 @@ Spark 와 Flink 는 대규모 클러스터 환경에서 빅데이터를 실시�
 
 ### 데이터 구조
 
-Spark 와 Flink 는 기본적으로 Row 기반으로 동작하기 때문에 Column 단위로 분석하는 요청에서는 효율이 떨어진다. 이러한 문제를 해결하기 위해 C++ 를 이용하여 Column 기반의 [새로운 엔진](https://www.databricks.com/product/photon)이 개발되고 했지만, 아직은 상용 서비스에서만 사용할 수 있다.
+Spark 와 Flink 는 기본적으로 Row 기반으로 동작하기 때문에 Column 단위로 분석하는 요청에서는 효율이 떨어진다. 이러한 문제를 해결하기 위해 C++ 를 이용하여 Column 기반의 [새로운 엔진](https://www.databricks.com/product/photon)이 개발되고 있지만, 아직은 상용 서비스에서만 사용할 수 있다.
 
 ### 메모리 관리
 

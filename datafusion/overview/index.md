@@ -1,15 +1,14 @@
 [Datafusion](https://github.com/apache/datafusion) 은 최근 빅데이터 분야에서 널리 사용되고 있는 [Arrow](https://arrow.apache.org/) 를 이용하여 Rust 기반으로 개발 중인 임베딩 SQL 엔진이다. 이미 다양한 분야에서 활용되고 있는 [DuckDB](https://github.com/duckdb/duckdb) 와 유사한 목적을 가지고 있지만, Rust 로 개발한 부분과 확장성이 뛰어난 부분 때문에 개인적으로 Datafusion 을 여러 가지 용도로 활용하고 있다. 그리고 최근 Rust 와 Datafusion 을 이용하여 기존 솔루션에 비해 탁월한 성능을 보여주는 새로운 오픈소스들이 많이 등장하고 앞으로 널리 쓰일 것으로 기대되기 때문에 Datafusion 에 대해 자세히 분석해보는 시간을 가지려고 한다.
 
-우선, 오랜 시간 널리 사용되고 있는 Spark 와 Trino 등과 비교했을 때 어떤 부분이 차이가 있는지 살펴보도록 하자.
+우선, 오랜 시간 널리 사용되고 있는 Spark 와 Trino 등과 비교했을 때 어떤 부분이 차이가 있는지 살펴보도록 하자. (이들과 비교하는 이유는, Datafusion 을 Pandas 와 비교할 수도 있겠지만 개인적으로 Spark 와 Trino 의 대체제로 활용하고 있기 때문이다.)
 
 ### 설치/운영
 
-Spark 와 Trino 는 대규모 클러스터 환경에서 빅데이터를 처리하기 위해 개발되었기 때문에 설치와 운영에 높은 전문 지식과 노력이 필요하다. 하지만 Datafusion 은 어디서나 임베딩해서 사용할 수 있기 때문에 비교적 간단하게 사용할 수 있다.
-(참고로, Datafusion 을 [분산 클러스터 환경에서 사용하려는 시도](https://github.com/apache/datafusion-ray)도 있긴 하다.)
+Spark 와 Trino 는 대규모 클러스터 환경에서 빅데이터를 처리하기 위해 개발되었기 때문에 설치와 운영에 높은 전문 지식과 노력이 필요하다. 하지만 Datafusion 은 어디서나 임베딩해서 사용할 수 있기 때문에 비교적 간단하게 사용할 수 있고, 수백에서 수천대의 대규모 클러스터에서 처리하는 데이터를 처리하긴 힘들지만 수십대의 클러스터에서 처리하는 데이터는 처리할 수 있다. 그리고 서버에 설치할 수 있는 CPU 와 메모리가 늘어날수록 처리할 수 있는 데이터는 지속적으로 늘어날 것이다. (참고로, Datafusion 을 [분산 클러스터 환경에서 사용하려는 시도](https://github.com/apache/datafusion-ray)도 있긴 하다.)
 
 ### 데이터 구조
 
-Spark 와 Trino 는 기본적으로 Row 기반으로 동작하기 때문에 Column 단위로 분석하는 요청에서는 효율이 떨어진다. 이러한 문제를 해결하기 위해 C++ 를 이용한 Column 기반의 [새로운 엔진](https://www.databricks.com/product/photon)과 Arrow 기반의 [Velox](https://github.com/facebookincubator/velox) 를 실행 엔진으로 사용하려는 시도가 있지만, 아직 여러 가지 제약 사항이 많다. 하지만 Datafusion 은 Arrow 를 기반으로 Column 단위로 동작하기 때문에 대부분의 분석 쿼리에서 효율적으로 동작한다. (LLVM 의 AutoVectorization 이 큰 역할을 하고 있다.)
+Spark 와 Trino 는 기본적으로 Row 기반으로 동작하기 때문에 Column 단위로 분석하는 요청에서는 효율이 떨어진다. 이러한 문제를 해결하기 위해 C++ 를 이용한 Column 기반의 [새로운 엔진](https://www.databricks.com/product/photon)과 Arrow 기반의 [Velox](https://github.com/facebookincubator/velox) 를 실행 엔진으로 사용하려는 시도가 있지만, 아직 여러 가지 제약 사항이 많다. 하지만 Arrow 기반의 Datafusion 은 Column 단위로 동작하기 때문에 대부분의 분석 쿼리에서 효율적으로 동작한다. 여기에는 연속된 메모리에 대한 반복 처리를 자동으로 Vectorization 해주는 LLVM 의 AutoVectorization 이 큰 역할을 하고 있다.
 
 ### 메모리 관리
 

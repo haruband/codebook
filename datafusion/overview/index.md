@@ -1,6 +1,6 @@
-[Datafusion](https://github.com/apache/datafusion) 은 최근 빅데이터 분야에서 널리 사용되고 있는 [Arrow](https://arrow.apache.org/) 를 이용하여 Rust 기반으로 개발 중인 임베딩 SQL 엔진이다. 이미 다양한 분야에서 활용되고 있는 [DuckDB](https://github.com/duckdb/duckdb) 와 유사한 목적을 가지고 있지만, Rust 로 개발 중이기 때문에 메모리 관리가 편리하고 확장성이 굉장히 뛰어나다는 장점이 있다. 이러한 장점들로 인해 최근 Datafusion 을 이용하여 기존 솔루션에 비해 탁월한 성능을 보여주는 새로운 오픈소스들이 많이 등장하고 있고, 특히 기존의 Java/Scala 중심의 빅데이터 분야에서 많은 변화를 주도할 것으로 기대된다. 그럼 이제 Datafusion 에 대해 자세히 살펴보도록 하자.
+[Datafusion](https://github.com/apache/datafusion) 은 최근 빅데이터 분야에서 널리 사용되고 있는 [Arrow](https://arrow.apache.org/) 를 이용하여 Rust 기반으로 개발 중인 임베딩 SQL 엔진이다. 이미 다양한 분야에서 활용되고 있는 [DuckDB](https://github.com/duckdb/duckdb) 와 유사한 목적을 가지고 있지만, Rust 로 개발 중이기 때문에 메모리 관리가 편리하고 확장성이 굉장히 뛰어나다는 장점이 있다. 이러한 장점들로 인해 최근 Datafusion 을 이용하여 기존 솔루션보다 탁월한 성능을 보여주는 새로운 오픈소스들이 많이 등장하고 있고, 특히 Java/Scala 중심의 빅데이터 분야에서 많은 변화를 주도할 것으로 기대된다. 그럼 이제 Datafusion 에 대해 자세히 살펴보도록 하자.
 
-우선, 오랜 시간 널리 사용되고 있는 Spark 와 비교했을 때 어떤 부분이 차이가 있는지 살펴보도록 하자. (이들과 비교하는 이유는, Datafusion 을 Pandas 와 비교할 수도 있겠지만 개인적으로 Spark 의 대체제로 활용하고 있기 때문이다.)
+우선, 오랜 시간 널리 사용되고 있는 Spark 와 비교했을 때 어떤 부분이 차이가 있는지 살펴보도록 하자. (Spark 와 비교하는 이유는, Datafusion 을 Pandas 와 비교할 수도 있겠지만 개인적으로 Spark 의 대체제로 활용하고 있기 때문이다.)
 
 ### 설치/운영
 

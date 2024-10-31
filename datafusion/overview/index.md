@@ -18,10 +18,70 @@ Java 에서 메모리 관리를 도와주는 GC (Garbage Collection) 는 다양�
 
 Java 는 바이트 코드로 컴파일되어 배포되기 때문에 성능을 높이기 위해 JIT (Just-In-Time) 방식을 사용하고 있다. 이는 자주 실행되는 바이트 코드를 런타임에 컴파일하여 네이티브 코드(x86, arm, ...)로 변환하는 기술인데, 이를 위한 준비 과정이 필요하며 LLVM 과 같은 컴파일러에 비해 충분한 최적화가 이루어지지 않는 문제가 있다. 하지만 Rust 는 네이티브 코드로 컴파일되어 배포되기 때문에 LLVM 이 제공하는 높은 수준의 최적화를 충분히 활용하게 된다.
 
+아래 그림은 Datafusion 이 동작하는 방식을 간단히 보여주고 있다. (대부분의 SQL 엔진이 비슷한 방식으로 동작한다.)
+
 ![overview.png](./overview.png)
+
+간단히 순서대로 설명하면,
+
+1. SQL 쿼리 혹은 DataFrame 인터페이스를 논리 계획(LogicalPlan)으로 변환
+2. 논리 계획 최적화 (ConstantFolding, CommonSubexpressionElimination, ...)
+3. 논리 계획을 실행 계획(ExecutionPlan)으로 변환
+4. 실행 계획 최적화 (Sort, Aggregation, Join, ...)
+5. 실행 계획에서 스트림(Stream) 추출
+6. 스트림에서 데이터(RecordBatch) 수집
+
+간단한 예제를 살펴보도록 하자. 아래와 같이 데이터(Parquet) 파일을 읽어서 정렬한 다음, 두 개의 컬럼을 보여주는 SQL 쿼리를 실행한다고 가정하자.
+
+```sql
+select company,score from table order by score asc
+```
+
+위의 쿼리는 아래와 같은 논리 계획으로 변환된다.
+
+```
+Sort: test0.score ASC NULLS LAST
+  TableScan: table projection=[company, score]
+```
+
+위의 논리 계획은 아래와 같은 실행 계획으로 변환된다.
+
+```
+SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[false]
+  ParquetExec: file_groups={1 group: [[file0.parquet, file1.parquet]]}, projection=[company, score]
+```
+
+일반적인 컴파일러가 동작하는 방식과 유사한데, 논리 계획은 상위 수준 중간 언어(IntermediateRepresentation)라고 보면 되고 실행 계획은 하위 수준 중간 언어라고 보면 된다. 논리 계획과 실행 계획의 역할은 실제 데이터를 수집 및 처리하는 역할을 하는 스트림을 생성하는 것이고, 위의 경우에는 SortExec 가 아래 그림의 SortStream 을, ParquetExec 가 아래 그림의 FileStream 을 생성한다.
 
 ![streams0.png](./streams0.png)
 
+위의 그림에서 FileStream 은 두 개의 데이터 파일을 읽어서 SortStream 으로 전달하고, SortStream 은 모든 데이터를 수집한 다음 정렬한 결과는 전달한다.
+
+위의 예제를 조금 더 자세히 살펴보면, 두 개의 파일을 하나의 스트림에서 읽는 것을 볼 수 있다. 이를 조금 더 개선할 수 있는 방법은 없을까? 두 개의 파일을 두 개의 스트림에서 각각 읽는다면 성능이 개선될 수 있지 않을까? Datafusion 에서는 파티션 개수를 조절하여 이를 개선할 수 있다. 아래는 2개의 파티션을 사용하도록 설정했을 때의 실행 계획을 보여준다.
+
+```
+SortExec: expr=[score@1 ASC NULLS LAST],
+preserve_partitioning=[false]
+  CoalescePartitionsExec
+    ParquetExec: file_groups={2 groups: [[file0.parquet], [file1.parquet]]}, projection=[company, score]
+```
+
+위의 실행 계획은 아래 그림과 같은 스트림을 생성한다.
+
 ![streams1.png](./streams1.png)
 
+위의 경우는 두 개의 FileStream 에서 각각 하나의 데이터 파일을 읽고 CoalesceStream 에서 두 개의 FileStream 을 하나로 합쳐서 SortStream 에 전달한다.
+
+위의 실행 계획은 어떤 문제를 가지고 있을까? 여러 데이터 파일을 병렬로 읽는 부분은 좋지만, 이를 하나로 합쳐서 정렬하는 부분은 개선의 여지가 있어보인다. Datafusion 에서는 파티션별로 먼저 정렬하는 병합 정렬(MergeSort)을 지원한다. 이를 적용했을 때의 실행 계획은 아래와 같다.
+
+```
+SortPreservingMergeExec: [score@1 ASC NULLS LAST]
+  SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[true]
+    ParquetExec: file_groups={2 groups: [[file0.parquet], [file1.parquet]]}, projection=[company, score]
+```
+
+위의 실행 계획은 아래 그림과 같은 스트림을 생성한다.
+
 ![streams2.png](./streams2.png)
+
+위의 경우는 두 개의 FileStream 에서 각각 하나의 데이터 파일을 읽어서 SortStream 에서 각각 정렬한 다음, SortPreservingMergeStream 에서 합쳐서 최종적으로 정렬한다.

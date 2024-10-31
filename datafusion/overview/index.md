@@ -22,7 +22,7 @@ Java 는 바이트 코드로 컴파일되어 배포되기 때문에 성능을 �
 
 ![overview.png](./overview.png)
 
-간단히 순서대로 설명하면,
+동작 과정을 간단히 정리해보면 아래와 같다.
 
 1. SQL 쿼리 혹은 DataFrame 인터페이스를 논리 계획(LogicalPlan)으로 변환
 2. 논리 계획 최적화 (ConstantFolding, CommonSubexpressionElimination, ...)
@@ -31,7 +31,9 @@ Java 는 바이트 코드로 컴파일되어 배포되기 때문에 성능을 �
 5. 실행 계획에서 스트림(Stream) 추출
 6. 스트림에서 데이터(RecordBatch) 수집
 
-간단한 예제를 살펴보도록 하자. 아래와 같이 데이터(Parquet) 파일을 읽어서 정렬한 다음, 두 개의 컬럼을 보여주는 SQL 쿼리를 실행한다고 가정하자.
+간단한 예제를 보면서, SQL 쿼리가 논리 계획과 실행 계획으로 어떻게 변환되는지, 최적화에 의해 실행 계획과 스트림이 어떻게 변환되는지 살펴보도록 하자.
+
+데이터(Parquet) 파일을 읽어서 정렬한 후 두 개의 컬럼을 보여주는 간단한 SQL 쿼리를 실행해보자.
 
 ```sql
 select company,score from table order by score asc
@@ -51,7 +53,7 @@ SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[false]
   ParquetExec: file_groups={1 group: [[file0.parquet, file1.parquet]]}, projection=[company, score]
 ```
 
-일반적인 컴파일러가 동작하는 방식과 유사한데, 논리 계획은 상위 수준 중간 언어(IntermediateRepresentation)라고 보면 되고 실행 계획은 하위 수준 중간 언어라고 보면 된다. 논리 계획과 실행 계획의 역할은 실제 데이터를 수집 및 처리하는 역할을 하는 스트림을 생성하는 것이고, 위의 경우에는 SortExec 가 아래 그림의 SortStream 을, ParquetExec 가 아래 그림의 FileStream 을 생성한다.
+일반적인 컴파일러가 동작하는 방식과 유사한데, 논리 계획은 상위 수준 중간 언어(IR)라고 보면 되고 실행 계획은 하위 수준 중간 언어라고 보면 된다. 논리 계획과 실행 계획의 역할은 실제 데이터를 수집 및 처리하는 역할을 하는 스트림을 생성하는 것이고, 위의 경우에는 SortExec 가 아래 그림의 SortStream 을, ParquetExec 가 아래 그림의 FileStream 을 생성한다.
 
 ![streams0.png](./streams0.png)
 

@@ -31,7 +31,7 @@ Java 는 바이트 코드로 컴파일되어 배포되기 때문에 성능을 �
 5. 실행 계획에서 스트림 추출
 6. 스트림에서 데이터 수집
 
-일반적인 컴파일러가 동작하는 방식과 유사한 부분이 많은데, 논리 계획(LogicalPlan)은 상위 수준 중간 언어(IR)라고 보면 되고 실행 계획(ExecutionPlan)은 하위 수준 중간 언어라고 보면 된다. 논리 계획과 실행 계획은 실제 데이터를 수집 및 처리하는 역할을 하는 스트림(Stream)을 생성하고, 하나의 스트림은 하나의 파티션을 하나의 스레드에서 처리한다고 생각하면 간단하다. 데이터는 현재 표준처럼 널리 사용되고 있는 Arrow 의 RecordBatch 형식을 사용한다.
+일반적인 컴파일러가 동작하는 방식과 유사한 부분이 많은데, 논리 계획(LogicalPlan)은 상위 수준 중간 언어(IR)라고 보면 되고 실행 계획(ExecutionPlan)은 하위 수준 중간 언어라고 보면 된다. 논리 계획과 실행 계획은 실제 데이터를 수집 및 처리하는 역할을 하는 스트림(Stream)을 생성하고, 하나의 스트림은 하나의 파티션(데이터)을 하나의 스레드에서 처리한다고 생각하면 간단하다. 데이터는 현재 표준처럼 널리 사용되고 있는 Arrow 의 RecordBatch 형식을 사용한다.
 
 간단한 예제를 보면서, SQL 쿼리가 논리 계획과 실행 계획으로 어떻게 변환되는지, 최적화에 의해 실행 계획과 스트림이 어떻게 변환되는지 살펴보도록 하자.
 
@@ -51,11 +51,11 @@ Sort: table.score ASC NULLS LAST
 위의 논리 계획은 테이블에서 두 개의 컬럼[company, score]을 읽어서 전달하는 부분(TableScan)과 전달받은 데이터를 정렬하는 부분(Sort)으로 구성되어 있다. (실제 데이터는 아래에서 위로 전달된다.) 위의 논리 계획은 아래와 같은 실행 계획으로 변환된다.
 
 ```
-SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[false]
+SortExec: expr=[score@1 ASC NULLS LAST]
   ParquetExec: file_groups={1 group: [[file0.parquet, file1.parquet]]}, projection=[company, score]
 ```
 
-테이블을 읽는 논리 계획(TableScan)은 데이터(Parquet) 파일의 형식에 따라 실행 계획(ParquetExec)으로 변환되었고, 정렬하는 논리 계획(Sort)은 여러 가지 상황에 따라 실행 계획(SortExec)으로 변환되었다. 논리 계획도 마찬가지이지만, 최적화 옵션이나 여러 가지 상황에 따라서 실행 계획은 달라진다. 위의 실행 계획이 실행되면, SortExec 가 아래 그림의 SortStream 을, ParquetExec 가 아래 그림의 FileStream 을 생성한다.
+테이블을 읽는 논리 계획(TableScan)은 데이터(Parquet) 파일의 형식에 따라 **ParquetExec** 실행 계획으로 변환되었고, 정렬하는 논리 계획(Sort)은 여러 가지 상황에 따라 **SortExec** 실행 계획으로 변환되었다. 논리 계획도 마찬가지이지만, 최적화 옵션이나 여러 가지 상황에 따라서 실행 계획은 달라진다. 위의 실행 계획이 실행되면, SortExec 가 아래 그림의 SortStream 을, ParquetExec 가 FileStream 을 생성한다.
 
 ![streams0.png](./streams0.png)
 
@@ -64,8 +64,7 @@ SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[false]
 위의 예제를 자세히 살펴보면, 두 개의 파일을 하나의 스트림에서 읽는 것을 볼 수 있다. 이를 조금 더 개선할 수 있는 방법은 없을까? 두 개의 파일을 두 개의 스트림에서 각각 읽는다면 성능이 개선될 수 있지 않을까? Datafusion 에서는 파티션 개수를 조절하여 이를 개선할 수 있다. 아래는 두 개의 파티션을 사용하도록 설정했을 때의 실행 계획을 보여준다.
 
 ```
-SortExec: expr=[score@1 ASC NULLS LAST],
-preserve_partitioning=[false]
+SortExec: expr=[score@1 ASC NULLS LAST]
   CoalescePartitionsExec
     ParquetExec: file_groups={2 groups: [[file0.parquet], [file1.parquet]]}, projection=[company, score]
 ```
@@ -80,7 +79,7 @@ preserve_partitioning=[false]
 
 ```
 SortPreservingMergeExec: [score@1 ASC NULLS LAST]
-  SortExec: expr=[score@1 ASC NULLS LAST], preserve_partitioning=[true]
+  SortExec: expr=[score@1 ASC NULLS LAST]
     ParquetExec: file_groups={2 groups: [[file0.parquet], [file1.parquet]]}, projection=[company, score]
 ```
 

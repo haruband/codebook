@@ -24,7 +24,7 @@ AggregateExec: mode=Single, gby=[country@0 as country, job@1 as job], aggr=[min(
 
 ![aggregate0.png](./aggregate0.png)
 
-위의 실행 계획은 어떤 문제를 가지고 있을까? 입력 데이터의 크기가 커지면 하나의 파티션에서 모든 작업을 처리하는 것은 굉장히 오래 걸릴 것이다. 그렇다면 이를 나누어서 처리할 수 있는 방법은 없을까? 이를 해결하기 위해 Datafusion 은 최종 집계를 하기 전에 부분 집계를 하는 방식을 제공하고 있다. (대부분의 SQL 엔진이 비슷한 기능을 제공하고 있다.) 아래는 두 개의 파티션을 사용하도록 설정했을 때의 실행 계획이다.
+위의 실행 계획은 어떤 문제를 가지고 있을까? 입력 데이터의 크기가 커지면 하나의 파티션에서 모든 작업을 처리하는 것은 굉장히 오래 걸릴 것이다. 그렇다면 이를 나누어서 처리할 수 있는 방법은 없을까? 이를 해결하기 위해 Datafusion 은 최종 집계를 구하기 전에 부분 집계를 구하는 방식을 제공하고 있다. (대부분의 SQL 엔진이 비슷한 기능을 제공하고 있다.) 아래는 두 개의 파티션을 사용하도록 설정했을 때의 실행 계획이다.
 
 ```
 AggregateExec: mode=Final, gby=[country@0 as country, job@1 as job], aggr=[min(table.salary), avg(table.salary)]
@@ -48,7 +48,7 @@ AggregateExec: mode=FinalPartitioned, gby=[country@0 as country, job@1 as job], 
         CsvExec: file_groups={1 group: [[salary.csv]]}, projection=[country, job, salary], has_header=true
 ```
 
-위의 실행 계획을 보면, 두 개의 파티션으로 부분 집계롤 구하는 것까진 동일하다. 하지만 그룹 컬럼[country, job]의 해시를 이용하여 파티션이 재분배되는 부분이 추가되었고, 이를 통해 다른 파티션에 존재하는 같은 그룹[country, job]의 부분 집계를 하나의 파티션으로 모아서 최종 집계를 구할 수 있게 된다. 아래 그림을 보면, 다른 파티션에서 부분 집계를 구한 그룹(japan, sales)이 최종 집계를 구할때는 하나의 파티션으로 모인 것을 볼 수 있다.
+위의 실행 계획을 보면, 두 개의 파티션으로 부분 집계를 구하는 것까진 동일하다. 하지만 그룹 컬럼[country, job]의 해시를 이용하여 파티션이 재분배되는 부분이 추가되었고, 이를 통해 다른 파티션에 존재하는 같은 그룹[country, job]의 부분 집계를 하나의 파티션으로 모아서 최종 집계를 구할 수 있게 된다. 아래 그림을 보면, 다른 파티션에서 부분 집계를 구한 그룹(japan, sales)이 최종 집계를 구할때는 하나의 파티션으로 모인 것을 볼 수 있다.
 
 ![aggregate2.png](./aggregate2.png)
 

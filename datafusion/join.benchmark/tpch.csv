@@ -1,0 +1,5 @@
+target,runtime,memory
+datafusion[hashjoin],22,4.6
+datafusion[broadcastjoin],16,2.3
+spark[hashjoin],73,128
+spark[sortmergejoin],70,32

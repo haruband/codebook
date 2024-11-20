@@ -1,4 +1,4 @@
-대부분의 SQL 엔진에서 성능 향상을 위해 가장 많이 신경쓰는 부분은 바로 조인(Join)일 것이다. 그래서 다양한 조건의 조인을 처리하는 여러 가지 동작 방식이 존재하고, 다양한 상황을 고려하여 최선의 동작 방식을 선택하는 것이 필수이다. 오늘은 Datafusion 에서 어떤 방식으로 조인을 처리하는지, 어떤 방법으로 최적화하는지 살펴보도록 하자.
+대부분의 SQL 엔진에서 성능 향상을 위해 가장 많이 신경쓰는 부분은 바로 조인(Join)일 것이다. 그래서 다양한 조건의 조인을 처리하는 여러 가지 동작 방식이 존재하고, 다양한 상황을 고려하여 최선의 동작 방식을 선택하는 것이 필수이다. 오늘은 Datafusion 에서 어떤 방식으로 조인을 처리하는지, 어떤 방법으로 최적화되는지 살펴보도록 하자.
 
 조인을 처리하는 방식에 가장 큰 영향을 주는 등가(Equal) 조건의 유무에 따라 조인을 어떻게 처리하는지 살펴보자.
 
@@ -6,15 +6,13 @@
 select * from left inner join right on left.country == right.country and left.job == right.job
 ```
 
-위는 두 개 컬럼[country, job]에 대한 등가 조건을 포함하고 있으며, 이는 아래와 같은 논리 계획으로 변환된다.
+위의 쿼리는 두 개 컬럼[country, job]에 대한 등가 조건을 포함하고 있으며 아래와 같은 논리 계획으로 변환되고, 일반적으로 두 가지 방식(HashJoin/SortMergeJoin)으로 실행된다.
 
 ```
 Inner Join: left.country = right.country, left.job = right.job
   TableScan: left projection=[country, job, salary]
   TableScan: right projection=[country, job, salary]
 ```
-
-등가 조인은 일반적으로 두 가지 방식(HashJoin/SortMergeJoin)으로 처리된다.
 
 우선, 대부분 가장 좋은 성능을 보여주는 HashJoin 부터 살펴보자. 이는 아래 그림처럼 작은 테이블을 이용하여 해시 테이블을 먼저 만들고, 큰 테이블을 순서대로 비교하면서 처리하는 방식이다. 해시를 이용하기 때문에 큰 테이블에 있는 데이터가 작은 테이블에 있는지 비교하는 비용은 O(1) 이지만, 해시 테이블을 메모리에 유지하는 비용이 문제가 될 수 있다. 그래서 테이블의 크기가 작다면 하나의 해시 테이블을 만드는 방식(CollectLeft)을 사용하고, 테이블의 크기가 크다면 조건 컬럼[country, job]의 해시를 이용해서 나눈 다음 파티션별로 해시 테이블을 만드는 방식(Partitioned)을 사용한다.
 
@@ -29,7 +27,7 @@ HashJoinExec: mode=CollectLeft, join_type=Inner, on=[(country@0, country@0), (jo
     CsvExec: file_groups={1 group: [[right.csv]]}, projection=[country, job, salary], output_ordering=[country@0 ASC NULLS LAST], has_header=true
 ```
 
-위의 실행 계획은 작은 테이블(left.csv)을 이용하여 해시 테이블을 먼저 만들고, 큰 테이블(right.csv)은 두 개의 파티션으로 나눈 다음 앞에서 만든 해시 테이블을 이용하여 비교한다.
+위의 실행 계획은 작은 테이블(left.csv)을 이용하여 해시 테이블을 먼저 만들고, 큰 테이블(right.csv)은 두 개의 파티션으로 나눈 다음 앞에서 만든 해시 테이블을 이용하여 비교한다. 분산 처리 엔진(Spark)에서는 마스터 노드에서 해시 테이블을 만들어서 워커 노드로 전송하기 때문에 오버헤드가 크지만, Datafusion 은 단일 프로세스로 동작하기 때문에 추가적인 오버헤드없이 해시 테이블을 공유해서 사용한다.
 
 조인에 사용되는 두 개의 테이블 중에 크기가 충분히 작은 테이블이 없다면 아래와 같은 실행 계획으로 변환된다.
 

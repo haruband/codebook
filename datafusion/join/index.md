@@ -41,7 +41,7 @@ HashJoinExec: mode=Partitioned, join_type=Inner, on=[(country@0, country@0), (jo
       CsvExec: file_groups={1 group: [[right.csv]]}, projection=[country, job, salary], output_ordering=[country@0 ASC NULLS LAST], has_header=true
 ```
 
-위의 실행 계획은 두 테이블을 각각 두 개의 파티션으로 나눈 다음, 조건 컬럼[country, job]의 해시를 이용하여 파티션을 재분배한다. 이렇게 되면 같은 조건 컬럼을 가지는 두 테이블의 모든 행은 같은 파티션으로 모이기 때문에 파티션별로 해시 테이블을 만들어서 처리하면 된다.
+위의 실행 계획은 두 테이블을 각각 두 개의 파티션으로 나눈 다음, 조건 컬럼[country, job]의 해시를 이용하여 파티션을 재분배한다. 이렇게 되면 같은 조건 컬럼을 가지는 두 테이블의 모든 행(row)은 같은 파티션으로 모이기 때문에 파티션별로 해시 테이블을 만들어서 처리하면 된다.
 
 다음으로, SortMergeJoin 을 살펴보자. 이는 아래 그림처럼 두 개의 테이블을 정렬한 다음 순차적으로 비교하면서 처리하는 방식이다. 정렬된 두 개의 테이블이 어떤 순서로 처리되는지 번호로 표시를 해두었다. 원리는 단순한데, 두 개의 테이블을 비교해서 오른쪽 테이블의 행(row)이 크면 왼쪽 테이블의 다음 행으로 넘어가고, 왼쪽 테이블의 행이 크면 오른쪽 테이블의 다음 행으로 넘어간다. 이런 방식으로 하면 빠짐없이 같은 조건 컬럼을 가지는 모든 행의 조합을 찾을 수 있다.
 
@@ -90,6 +90,6 @@ NestedLoopJoinExec: join_type=Inner, filter=salary@0 > salary@1
     CsvExec: file_groups={1 group: [[right.csv]]}, projection=[country, job, salary], output_ordering=[country@0 ASC NULLS LAST], has_header=true
 ```
 
-위의 실행 계획은 큰 테이블(right.csv)을 두 개의 파티션으로 나눈 다음 작은 테이블(left.csv)과 가능한 조합을 모두 확인한다.
+위의 실행 계획은 큰 테이블(right.csv)을 두 개의 파티션으로 나눈 다음 작은 테이블(left.csv)과 가능한 조합을 모두 확인한다. 앞의 HashJoin 은 작은 테이블도 충분히 작지 않다면 여러 개의 파티션으로 나누어서 처리하는 것이 가능했지만, NestedLoopJoin 은 작은 테이블을 나눌 수 있는 기준이 없기 때문에 나누어서 처리할 수 없다.
 
 지금까지 Datafusion 에서 조인이 어떻게 동작하는지 살펴보았다. 이외에도 다양한 최적화 기술들을 이미 지원하고 있고, 앞으로 지원될 예정인 기술들도 많으니 기회될 때마다 소개드리도록 하겠다.

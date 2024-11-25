@@ -61,7 +61,7 @@ SortMergeJoin: join_type=Inner, on=[(country@0, country@0), (job@1, job@1)]
         CsvExec: file_groups={1 group: [[right.csv]]}, projection=[country, job, salary], output_ordering=[country@0 ASC NULLS LAST], has_header=true
 ```
 
-위의 실행 계획은 두 테이블을 각각 두 개의 파티션으로 나눈 다음, 조건 컬럼[country, job]의 해시를 이용하여 파티션을 재분배한다. 그리고 파티션별로 졍렬한 다음 순차적으로 비교하면서 처리한다.
+위의 실행 계획은 두 테이블을 각각 두 개의 파티션으로 나눈 다음, 조건 컬럼[country, job]의 해시를 이용하여 파티션을 재분배한다. 그리고 파티션별로 정렬한 다음 순차적으로 비교하면서 처리한다.
 
 아래와 같이 등가 조건이 없는 비등가 조인은 어떻게 처리되는지 살펴보자.
 

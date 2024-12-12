@@ -22,18 +22,6 @@ g1.set_yticklabels(g1.get_yticklabels(), size=8)
 g1.set(xlabel=None)
 g1.set(ylabel="runtime (seconds)")
 
-g2 = sns.lineplot(
-    data=df,
-    x="target",
-    y="memory",
-    marker="o",
-    linestyle="dashed",
-    color="green",
-    ax=axe2,
-)
-g2.set_yticklabels(g2.get_yticklabels(), size=8)
-g2.set(ylabel="memory (gigabytes)")
-
 plt.tight_layout()
 # plt.show()
 plt.savefig("tpch.png")

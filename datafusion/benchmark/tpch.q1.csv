@@ -1,7 +1,7 @@
-target,runtime,memory
-datafusion,82,2.9
-spark+8gb,679,8
-spark+16gb,669,16
-spark+32gb,828,32
-spark+64gb,809,60
-spark+128gb,803,67
+target,runtime
+datafusion,68
+spark+8gb,689
+spark+16gb,682
+spark+32gb,828
+spark+64gb,809
+spark+128gb,803

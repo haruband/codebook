@@ -79,3 +79,58 @@ order by
 ```
 
 ![tpch.q12.png](./tpch.q12.png)
+
+```rust
+pub fn loop_simple(a: &[i32; 8]) -> i32 {
+    let mut r: i32 = 0;
+    for var in a.iter() {
+        r += var;
+    }
+    r
+}
+```
+
+```
+       0: 48 83 ec 38                   subq  $56, %rsp
+       4: 48 89 7c 24 28                movq  %rdi, 40(%rsp)
+       9: c7 44 24 0c 00 00 00 00       movl  $0, 12(%rsp)
+      11: be 08 00 00 00                movl  $8, %esi
+      16: ff 15 00 00 00 00             callq *(%rip)
+      1c: 48 89 c7                      movq  %rax, %rdi
+      1f: 48 89 d6                      movq  %rdx, %rsi
+      22: ff 15 00 00 00 00             callq *(%rip)
+      28: 48 89 44 24 10                movq  %rax, 16(%rsp)
+      2d: 48 89 54 24 18                movq  %rdx, 24(%rsp)
+      32: 48 8d 7c 24 10                leaq  16(%rsp), %rdi
+      37: ff 15 00 00 00 00             callq *(%rip)
+      3d: 48 89 44 24 20                movq  %rax, 32(%rsp)
+      42: 48 8b 54 24 20                movq  32(%rsp), %rdx
+      47: b8 01 00 00 00                movl  $1, %eax
+      4c: 31 c9                         xorl  %ecx, %ecx
+      4e: 48 83 fa 00                   cmpq  $0, %rdx
+      52: 48 0f 44 c1                   cmoveq  %rcx, %rax
+      56: 48 83 f8 00                   cmpq  $0, %rax
+      5a: 75 09                         jne 0x65
+      5c: 8b 44 24 0c                   movl  12(%rsp), %eax
+      60: 48 83 c4 38                   addq  $56, %rsp
+      64: c3                            retq
+      65: 48 8b 74 24 20                movq  32(%rsp), %rsi
+      6a: 48 89 74 24 30                movq  %rsi, 48(%rsp)
+      6f: 48 8d 7c 24 0c                leaq  12(%rsp), %rdi
+      74: 48 8d 15 00 00 00 00          leaq  (%rip), %rdx
+      7b: e8 00 00 00 00                callq 0x80
+      80: eb b0                         jmp 0x32
+      ...
+```
+
+```
+       0: f3 0f 6f 07                   movdqu  (%rdi), %xmm0
+       4: f3 0f 6f 4f 10                movdqu  16(%rdi), %xmm1
+       9: 66 0f fe c8                   paddd   %xmm0, %xmm1
+       d: 66 0f 70 c1 ee                pshufd  $238, %xmm1, %xmm0
+      12: 66 0f fe c1                   paddd   %xmm1, %xmm0
+      16: 66 0f 70 c8 55                pshufd  $85, %xmm0, %xmm1
+      1b: 66 0f fe c8                   paddd   %xmm0, %xmm1
+      1f: 66 0f 7e c8                   movd    %xmm1, %eax
+      23: c3                            retq
+```

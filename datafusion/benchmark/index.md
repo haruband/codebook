@@ -10,6 +10,22 @@
 
 ```sql
 select
+    sum(l_extendedprice * l_discount) as revenue
+from
+    lineitem
+where
+    l_shipdate >= date '1994-01-01'
+    and l_shipdate < date '1995-01-01'
+    and l_discount between 0.06 - 0.01 and 0.06 + 0.01
+    and l_quantity < 24;
+```
+
+![tpch.q6.png](./tpch.q6.png)
+
+![memory.q6.png](./memory.q6.png)
+
+```sql
+select
     l_returnflag,
     l_linestatus,
     sum(l_quantity) as sum_qty,
@@ -34,19 +50,7 @@ order by
 
 ![tpch.q1.png](./tpch.q1.png)
 
-```sql
-select
-    sum(l_extendedprice * l_discount) as revenue
-from
-    lineitem
-where
-    l_shipdate >= date '1994-01-01'
-    and l_shipdate < date '1995-01-01'
-    and l_discount between 0.06 - 0.01 and 0.06 + 0.01
-    and l_quantity < 24;
-```
-
-![tpch.q6.png](./tpch.q6.png)
+![memory.q1.png](./memory.q1.png)
 
 ```sql
 select
@@ -79,6 +83,8 @@ order by
 ```
 
 ![tpch.q12.png](./tpch.q12.png)
+
+![memory.q12.png](./memory.q12.png)
 
 ```rust
 pub fn loop_simple(a: &[i32; 8]) -> i32 {

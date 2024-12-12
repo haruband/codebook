@@ -1,5 +1,5 @@
 target,runtime
 datafusion+broadcastjoin,13
 datafusion+hashjoin,17
-spark+hashjoin,98
-spark+sortmergejoin,93
+spark+hashjoin,100
+spark+sortmergejoin,96

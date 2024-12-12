@@ -3,5 +3,4 @@ datafusion,68
 spark+8gb,689
 spark+16gb,682
 spark+32gb,828
-spark+64gb,809
-spark+128gb,803
+spark+64gb,820

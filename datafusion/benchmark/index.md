@@ -104,7 +104,7 @@ Datafusion 은 BroadcastJoin 과 HashJoin 에서 2.5 GB 정도의 메모리를 �
 
 ![memory.q12.png](./memory.q12.png)
 
-실험 결과를 종합해보면, Datafusion 이 훨씬 적은 메모리를 사용하면서도 10 배 정도 좋은 성능을 보여주고 있다. 또한, Spark 는 최대 메모리 사용량에 따라 메모리 사용량과 처리 시간이 예측하기 힘든 결과를 보여주고, 최대 메모리 사용량이 부족하면 예기치 못한 OOM(OutOfMemory) 도 자주 발생하기 때문에 사용하기 까다롭다. 이러한 이유들로 Spark 와 Trino 의 쿼리 엔진을 [Photon](https://www.databricks.com/product/photon) 이나 [Velox](https://github.com/facebookincubator/velox) 로 교체하려는 시도도 여러 곳에서 진행 중인 것으로 알고 있다.
+실험 결과를 종합해보면, Datafusion 이 훨씬 적은 메모리를 사용하면서도 10 배 정도 좋은 성능을 보여주고 있다. 또한, Spark 는 최대 메모리 사용량에 따른 실제 메모리 사용량과 처리 시간을 예측하기 힘들고, 최대 메모리 사용량이 부족하면 예기치 못한 OOM(OutOfMemory) 도 자주 발생하기 때문에 사용하기가 매우 까다롭다.
 
 마지막으로 Datafusion 이 어떻게 좋은 성능을 보여주는지 살펴보도록 하자.
 
@@ -173,4 +173,4 @@ pub fn loop_simple(a: &[i32; 8]) -> i32 {
       23: c3                            retq
 ```
 
-지금까지 몇 가지 실험을 통해 Datafusion 과 Spark 의 성능을 검증 및 분석해보았다. Datafusion 은 아직 공개된지 오래되지 않았고, 매우 활발하게 개발 중이기 때문에 앞으로 더 좋은 성능을 보여줄 것으로 기대하고 있다.
+지금까지 몇 가지 실험을 통해 Datafusion 과 Spark 의 성능을 검증 및 분석해보았다. Datafusion 은 아직 공개된지 오래되지 않았고, 매우 활발하게 개발 중이기 때문에 앞으로 더 좋은 성능을 보여줄 것으로 기대하고 있다. 그리고 Spark 와 Trino 도 자바의 한계를 벗어나기 위해 핵심 쿼리 엔진을 [Photon](https://www.databricks.com/product/photon) 이나 [Velox](https://github.com/facebookincubator/velox) 로 교체하려는 시도를 하고 있고, [Spark 의 쿼리 엔진을 Datafusion 으로 교체하려는 시도](https://github.com/apache/datafusion-comet)도 이미 진행 중이기 때문에 앞으로 많은 변화가 있을 것으로 기대된다.

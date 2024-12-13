@@ -1,7 +1,7 @@
 [Datafusion](https://github.com/apache/datafusion) 은 [Arrow](https://arrow.apache.org) 를 이용하여 Rust 기반으로 개발 중인 임베딩 SQL 엔진이다. 그래서 Scala 기반으로 개발되어 JVM 위에서 동작하는 [Spark](https://spark.apache.org) 에 비해 아래와 같은 장점을 가진다.
 
-* Column 기반 데이터 처리 (Arrow)
 * GC 없이 메모리 안정성 보장
+* 컬럼 기반 데이터 포맷 사용 (Arrow)
 * LLVM 기반 최적화 (Vectorization, ...)
 
 그렇다면 이러한 장점들이 실제 성능에는 얼마나 영향을 주는지 알아보도록 하자. 오늘은 단일 머신에서의 성능만을 비교하고, 추후에 [Ballista](https://datafusion.apache.org/ballista) 와 같은 Datafusion 기반의 분산 처리 기술을 이용하여 분산 처리 성능도 비교해보도록 하겠다.
@@ -100,11 +100,19 @@ Datafusion 의 BroadcastJoin 이 가장 좋은 성능을 보여주고 있으며,
 
 ![tpch.q12.png](./tpch.q12.png)
 
-Datafusion 은 BroadcastJoin 과 HashJoin 에서 2.5 GB 정도의 메모리를 사용하였으며, Spark 는 HashJoin 에서 메모리가 부족하여 파티션을 두 배(400)로 늘려서 실험하였다.
+Datafusion 은 BroadcastJoin 과 HashJoin 에서 2.5 GB 정도의 메모리를 사용하였으며, Spark 는 HashJoin 에서 64 GB 의 메모리도 부족하여 파티션을 두 배(400)로 늘려서 실험하였다.
 
 ![memory.q12.png](./memory.q12.png)
 
 실험 결과를 종합해보면, Datafusion 이 훨씬 적은 메모리를 사용하면서도 10 배 정도 좋은 성능을 보여주고 있다. 또한, Spark 는 최대 메모리 사용량에 따라 메모리 사용량과 처리 시간이 예측하기 힘든 결과를 보여주기 때문에 사용하기도 까다롭다. 이러한 이유들로 Spark 와 Trino 의 쿼리 엔진을 [Photon](https://www.databricks.com/product/photon) 이나 [Velox](https://github.com/facebookincubator/velox) 로 교체하려는 시도가 나타나고 있는 것이다.
+
+마지막으로 Datafusion 이 어떻게 좋은 성능을 보여주는지 살펴보도록 하자.
+
+첫 번째 이유는 GC 를 사용하지 않기 때문이다. GC 를 사용하면 메모리를 반환하더라도 GC 에 의해 해제되기 전까지 재사용이 불가능하기 때문에 실제 메모리 사용량을 정확히 예측하기 어렵고, 실제 메모리 사용량보다 많은 메모리를 사용할 수 밖에 없다. 그리고 최대 메모리 사용량을 늘릴수록 GC 에 의해 관리되는 영역이 커지기 때문에 그만큼 오버헤드도 증가하게 된다. 반면에, GC 를 사용하지 않고 시스템 메모리를 바로 사용하면 메모리를 반환하는 즉시 재사용이 가능하고, 최대 메모리를 별도로 설정할 필요없이 시스템 메모리를 최대로 활용할 수 있으며 스왑까지 충분히 활용한다면 이론적으로는 OOM(OutOfMemory)은 발생하지 않는다.
+
+두 번째 이유는 컬럼 기반 데이터 포맷을 사용하기 때문이다. 이로 인해 캐시 효율이 높아지고, 아래 소개할 LLVM 을 이용한 AutoVectorization 도 가능해지기 때문이다.
+
+세 번째 이유는 LLVM 을 이용하여 최적화하기 때문이다. Spark 는 바이트코드로 배포되어 JIT(JustInTime) 기술을 이용하여 실행되기 때문에 충분한 최적화를 하기가 힘들지만, Datafusion 은 LLVM 을 이용하여 네이티브코드로 컴파일하여 배포하기 때문에 충분한 최적화를 할 수 있다. 이로 인해 최소한의 노력으로 Vectorization 과 같은 하드웨어 가속을 바로 사용할 수 있게 된다. 아래는 8 개 정수의 합을 구하는 간단한 예제를 통해 LLVM 이 어떻게 AutoVectorization 을 지원하는지 보여주고 있다.
 
 ```rust
 pub fn loop_simple(a: &[i32; 8]) -> i32 {
@@ -115,6 +123,8 @@ pub fn loop_simple(a: &[i32; 8]) -> i32 {
     r
 }
 ```
+
+아래는 위의 코드를 최적화 없이 컴파일한 결과이다. 많은 명령어와 메모리 접근이 빈번하게 발생하는 것을 볼 수 있다.
 
 ```
        0: 48 83 ec 38                   subq  $56, %rsp
@@ -149,6 +159,8 @@ pub fn loop_simple(a: &[i32; 8]) -> i32 {
       ...
 ```
 
+아래는 Vectorization 이 적용된 결과이다. 위의 코드에 비해 훨씬 적은 명령어와 메모리 접근이 발생하는 것을 볼 수 있다.
+
 ```
        0: f3 0f 6f 07                   movdqu  (%rdi), %xmm0
        4: f3 0f 6f 4f 10                movdqu  16(%rdi), %xmm1
@@ -160,3 +172,5 @@ pub fn loop_simple(a: &[i32; 8]) -> i32 {
       1f: 66 0f 7e c8                   movd    %xmm1, %eax
       23: c3                            retq
 ```
+
+지금까지 몇 가지 실험을 통해 Datafusion 과 Spark 의 성능을 검증 및 분석해보았다. Datafusion 은 아직 공개된지 오래되지 않았고, 매우 활발하게 개발 중이기 때문에 앞으로 더 좋은 성능을 보여줄 것으로 기대하고 있다.

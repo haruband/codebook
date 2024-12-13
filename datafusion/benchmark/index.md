@@ -64,7 +64,7 @@ Datafusion 은 최대 2 GB 정도의 메모리를 사용하였으며, Spark 는 
 
 ![memory.q1.png](./memory.q1.png)
 
-세 번째 실험은 두 개의 테이블을 조인하는 쿼리(TPC-H-Q12)이다.
+세 번째 실험은 두 개의 테이블을 조인하는 쿼리(TPC-H-Q12)이다. 등가(Equal) 조인을 처리하는 방식은 BroadcastJoin, HashJoin, SortMergeJoin 등이 있는데, 이번 실험에서는 최적화가 충분치 않은 Datafusion 의 SortMergeJoin 과 데이터 크기가 커서 사용할 수 없는 Spark 의 BroadcastJoin 은 제외하고 진행하였다.
 
 ```sql
 select
@@ -96,9 +96,15 @@ order by
     l_shipmode;
 ```
 
+Datafusion 의 BroadcastJoin 이 가장 좋은 성능을 보여주고 있으며, Spark 에 비해 대략 7.6 배 정도 좋은 성능을 보여주고 있다.
+
 ![tpch.q12.png](./tpch.q12.png)
 
+Datafusion 은 BroadcastJoin 과 HashJoin 에서 2.5 GB 정도의 메모리를 사용하였으며, Spark 는 HashJoin 에서 메모리가 부족하여 파티션을 두 배(400)로 늘려서 실험하였다.
+
 ![memory.q12.png](./memory.q12.png)
+
+실험 결과를 종합해보면, Datafusion 이 훨씬 적은 메모리를 사용하면서도 10 배 정도 좋은 성능을 보여주고 있다. 또한, Spark 는 JVM 위에서 동작하기 때문에 최대 메모리 사용량에 따라 메모리 사용량과 처리 시간이 예측하기 힘든 결과를 보여준다.
 
 ```rust
 pub fn loop_simple(a: &[i32; 8]) -> i32 {
